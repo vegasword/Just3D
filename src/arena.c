@@ -55,24 +55,13 @@ void *AllocAlign(Arena *arena, size_t size, size_t align)
   }
 }
 
-void *Alloc(Arena *arena, size_t size) 
-{
-  return AllocAlign(arena, size, DEFAULT_ALIGNMENT);
-}
-
+#define Alloc(arena, size) AllocAlign(arena, size, DEFAULT_ALIGNMENT)
 #define New(arena, type) (type *)Alloc(arena, sizeof(type))
 
 void Init(Arena *arena, void *backBuffer, size_t backBufferLength)
 {
   arena->data = (uc *)backBuffer;
   arena->capacity = backBufferLength;
-  arena->cur = 0;
-  arena->prev = 0;
-}
-
-void Destroy(Arena *arena)
-{
-  memset(arena->data, 0, arena->capacity);
   arena->cur = 0;
   arena->prev = 0;
 }

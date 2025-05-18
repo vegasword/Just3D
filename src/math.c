@@ -30,19 +30,31 @@ m4 GetTransformMatrix(Transform transform)
   return HMM_MulM4(HMM_MulM4(translate, rotation), scale);
 }
 
-m4 GetPivotedTransformMatrix(Transform *transform, v3 pivot)
+m4 GetPivotedTransformMatrix(Transform transform, v3 pivot)
 {  
   m4 translateToPivot = HMM_Translate(pivot);
   m4 translateFromPivot = HMM_Translate(HMM_MulV3F(pivot, -1));
   
-  m4 translate = HMM_Translate(transform->position);
-  m4 rotation = GetRotationMatrix(transform->rotation);
-  m4 scale = HMM_Scale(HMM_MulV3F(transform->scale, 2));
+  m4 translate = HMM_Translate(transform.position);
+  m4 rotation = GetRotationMatrix(transform.rotation);
+  m4 scale = HMM_Scale(HMM_MulV3F(transform.scale, 2));
   
   return HMM_MulM4(translateToPivot, HMM_MulM4(translate, HMM_MulM4(rotation, HMM_MulM4(scale, translateFromPivot))));
 }
 
-m4 ComputeMVP(m4 *modelMatrix, Camera *camera)
+m4 ComputeModelViewProjectionMatrix(m4 modelMatrix, Camera *camera)
 {
-  return HMM_MulM4(*camera->projection, HMM_MulM4(*camera->view, *modelMatrix));
+  return HMM_MulM4(camera->projection, HMM_MulM4(camera->view, modelMatrix));
+}
+
+m3 ComputeNormalMatrix(m4 modelMatrix)
+{
+  m3 modelMatrix3 = (m3) {
+    .Columns = {
+      [0] = modelMatrix.Columns[0].XYZ,
+      [1] = modelMatrix.Columns[1].XYZ,
+      [2] = modelMatrix.Columns[2].XYZ
+    }
+  };
+  return HMM_TransposeM3(HMM_InvGeneralM3(modelMatrix3));
 }

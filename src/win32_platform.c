@@ -17,7 +17,6 @@ void Quit(HWND window, Win32Context *context)
   context->quitting = true;
   ReleaseDC(window, context->dc);
   wglDeleteContext(context->glrc);
-  PostQuitMessage(0);
 }
 
 LRESULT CALLBACK WindowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)

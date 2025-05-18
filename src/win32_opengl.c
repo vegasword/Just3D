@@ -25,6 +25,7 @@ LRESULT CALLBACK WindowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
     X(PFNGL(CREATESHADERPROGRAMV),      glCreateShaderProgramv      )\
     X(PFNGL(GETPROGRAMIV),              glGetProgramiv              )\
     X(PFNGL(GETPROGRAMINFOLOG),         glGetProgramInfoLog         )\
+    X(PFNGL(USEPROGRAM),                glUseProgram                )\
     X(PFNGL(DELETEPROGRAM),             glDeleteProgram             )\
 \
     X(PFNGL(CREATEPROGRAMPIPELINES),    glCreateProgramPipelines    )\
@@ -40,10 +41,12 @@ LRESULT CALLBACK WindowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
     X(PFNGL(GENERATETEXTUREMIPMAP),     glGenerateTextureMipmap     )\
 \
     X(PFNGL(PROGRAMUNIFORM2UIV),        glProgramUniform2uiv        )\
+    X(PFNGL(PROGRAMUNIFORM1FV),         glProgramUniform1fv         )\
     X(PFNGL(PROGRAMUNIFORM2FV),         glProgramUniform2fv         )\
+    X(PFNGL(PROGRAMUNIFORM3FV),         glProgramUniform3fv         )\
     X(PFNGL(PROGRAMUNIFORM4FV),         glProgramUniform4fv         )\
+    X(PFNGL(PROGRAMUNIFORMMATRIX3FV),   glProgramUniformMatrix3fv   )\
     X(PFNGL(PROGRAMUNIFORMMATRIX4FV),   glProgramUniformMatrix4fv   )\
-    X(PFNGL(GETNUNIFORMFV),             glGetnUniformfv             )\
 \
     X(PFNGL(DRAWARRAYSINSTANCED),       glDrawArraysInstanced       )\
 \
@@ -236,7 +239,7 @@ HWND CreateOpenGLContext(HINSTANCE instance, Win32Context *context)
   return window;
 }
 
-GLuint CreateTextureEx(const char * path, GLint wrapS, GLint wrapT, GLint min, GLint mag, bool generateMipmap, GLenum format, GLenum subFormat)
+GLuint LoadTextureEx(const char * path, GLint wrapS, GLint wrapT, GLint min, GLint mag, bool generateMipmap, GLenum format, GLenum subFormat)
 {
   i32 width, height;
   uc *data = stbi_load(path, &width, &height, NULL, STBI_rgb);
@@ -266,28 +269,26 @@ GLuint CreateTextureEx(const char * path, GLint wrapS, GLint wrapT, GLint min, G
   return texture;
 }
 
-GLuint CreateTexture(const char *path)
-{
-  return CreateTextureEx(path, GL_REPEAT, GL_REPEAT, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR, true, GL_RGB8, GL_RGB);
-}
+#define LoadTexture(path) LoadTextureEx(path, GL_REPEAT, GL_REPEAT, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR, true, GL_RGB8, GL_RGB);
 
-Model CreateModel(Arena *arena, const char *path)
+Model LoadModel(Arena *arena, const char *path)
 {
   HANDLE file = CreateFile(path, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_READONLY, NULL);
-  assert(file);  
+  assert(file != INVALID_HANDLE_VALUE);
   
+  //TODO: Read whole file then attributions + SIMD optimizations
   Model model = {0};
   if (file != INVALID_HANDLE_VALUE)
   {
     ReadFile(file, &model.indicesCount, 4 * sizeof(u32), 0, NULL);
-    ReadFile(file, &model.uvScale, 2 * sizeof(v2), 0, NULL);
+    ReadFile(file, &model.uvScale, 10 * sizeof(f32), 0, NULL);
     
-    u16 boundings[6] = {0};
-    ReadFile(file, &boundings, 6 * sizeof(u16), 0, NULL);
+    u16 bounds[6] = {0};
+    ReadFile(file, &bounds, 6 * sizeof(u16), 0, NULL);
     for (u32 i = 0; i < 3; ++i)
     {
-      model.boundings.min.Elements[i] = (f32)boundings[i] / 65535.f;
-      model.boundings.max.Elements[i] = (f32)boundings[i+3] / 65535.f;
+      model.bounds.min.Elements[i] = (f32)bounds[i] / 65535.f;
+      model.bounds.max.Elements[i] = (f32)bounds[i+3] / 65535.f;
     }
     
     TmpArena tmpArena = {0};
@@ -297,10 +298,7 @@ Model CreateModel(Arena *arena, const char *path)
     Vertex *vertices = (Vertex *)Alloc(arena, model.verticesSize);
     ReadFile(file, indices, model.indicesSize, 0, NULL);
     ReadFile(file, vertices, model.verticesSize, 0, NULL);
-    
-    TmpEnd(&tmpArena);
-    CloseHandle(file);
-    
+        
     GLuint vbo;
     glCreateBuffers(1, &vbo);
     glNamedBufferStorage(vbo, model.verticesSize, vertices, GL_DYNAMIC_STORAGE_BIT);
@@ -320,11 +318,19 @@ Model CreateModel(Arena *arena, const char *path)
     glEnableVertexArrayAttrib(model.vao, 1);
     glVertexArrayAttribIFormat(model.vao, 1, 3, GL_BYTE, offsetof(Vertex, nx));
     glVertexArrayAttribBinding(model.vao, 1, 0);
-
+    
     glEnableVertexArrayAttrib(model.vao, 2);
-    glVertexArrayAttribIFormat(model.vao, 2, 2, GL_UNSIGNED_SHORT,  offsetof(Vertex, u));
+    glVertexArrayAttribIFormat(model.vao, 2, 4, GL_BYTE, offsetof(Vertex, tx));
     glVertexArrayAttribBinding(model.vao, 2, 0);
+
+    glEnableVertexArrayAttrib(model.vao, 3);
+    glVertexArrayAttribIFormat(model.vao, 3, 2, GL_UNSIGNED_SHORT,  offsetof(Vertex, u));
+    glVertexArrayAttribBinding(model.vao, 3, 0);
+    
+    TmpEnd(&tmpArena);
+    CloseHandle(file);
   }
+  //TODO: else return a default dummy texture handle
   
   return model;
 }
@@ -394,7 +400,7 @@ Shader CompileShader(Arena *arena, const char *path, GLenum type)
   return shader;
 }
 
-Pipeline SetupPipeline(Arena *arena, u32 shadersCount, Shader *shaders)
+Pipeline CreatePipeline(Arena *arena, u32 shadersCount, Shader *shaders)
 {
   Pipeline pipeline = { .shadersCount = shadersCount, .shaders = (Shader *)Alloc(arena, shadersCount * sizeof(Shader)) };
   
@@ -464,7 +470,7 @@ void ShadersHotReloading(Arena *arena, Pipeline *pipelines, u32 pipelinesCount)
           }
           else
           {
-            Log("Waiting for modifications in %s...\n", path);
+            Log("Errors in %s! Waiting for changes...\n", path);
             GetShaderNewWriteTime(&currentPipeline->shaders[j], &prevWrite, &lastWrite);
             while (prevWrite.QuadPart == lastWrite.QuadPart)
             {

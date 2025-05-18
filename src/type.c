@@ -19,5 +19,6 @@ typedef unsigned char uc;
 typedef HMM_Vec2 v2;
 typedef HMM_Vec3 v3;
 typedef HMM_Vec4 v4;
+typedef HMM_Mat3 m3;
 typedef HMM_Mat4 m4;
 typedef HMM_Quat qt;

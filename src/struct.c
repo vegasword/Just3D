@@ -1,4 +1,14 @@
-typedef struct {
+typedef struct GameButtons GameButtons;
+typedef struct GameInputs GameInputs;
+typedef struct Transform Transform;
+typedef struct Vertex Vertex;
+typedef struct Bounds Bounds;
+typedef struct MetallicRoughnessMaterial MetallicRoughnessMaterial;
+typedef struct Model Model;
+typedef struct Camera Camera;
+typedef struct Entity Entity;
+
+struct GameButtons {
   bool moveForward : 1;
   bool moveBackward : 1;
   bool moveLeft : 1;
@@ -8,9 +18,9 @@ typedef struct {
   bool back : 1;
   bool enter : 1;
   bool escape : 1;
-} GameButtons;
+};
 
-typedef struct {
+struct GameInputs {
   v2 mousePosition;
   v2 lastAbsMousePosition;
   v2 deltaMousePos;
@@ -18,49 +28,65 @@ typedef struct {
   v2 *mousePosBuffer;
   bool isKeyPressed;
   GameButtons buttons;
-} GameInputs;
+};
 
-typedef struct {
+struct Transform {
   v3 position;
   v3 rotation;
   v3 scale;
-} Transform;
+};
 
-typedef struct {
-  v3 min;
-  v3 max;
-} Boundings;
-
-typedef struct {
-  u16 x, y, z, pad0;
-  i8 nx, ny, nz, pad1;
+struct Vertex {
+  u16 x, y, z;
+  i8 nx, ny, nz;
+  i8 tx, ty, tz, handedness;
   u16 u, v;
-} Vertex;
+};
 
-typedef struct {
-  u32 vao;
+struct Bounds {
+  v3 min, max;
+};
+
+struct MetallicRoughnessMaterial {
+  v4 baseColorFactor;
+  f32 metallicFactor;
+  f32 roughnessFactor;
+  u32 baseColor;
+  u32 metallicRoughness;
+  u32 normalMap;
+  u32 ambientOcclusion;
+};
+
+struct Model {
   u32 indicesCount;
   u32 indicesSize;
   u32 verticesCount;
-  u32 verticesSize;
+  u32 verticesSize;  
   v2 uvScale;
   v2 uvOffset;
-  Boundings boundings;
-} Model;
+  Bounds bounds;
+  u32 vao;
+  MetallicRoughnessMaterial material;
+};
 
-typedef struct {
+struct Camera {
+  Entity *entity;
   f32 pitch;
   f32 yaw;
   f32 fov;
   f32 aspect;
-  Transform *transform;
-  m4 *view;
-  m4 *projection;
-} Camera;
+  m4 view;
+  m4 projection;
+};
 
-typedef struct {  
-  Transform *transform;
-  m4 *modelMatrix;
-  Model *model;
-  u32 texture;
-} Entity;
+struct Entity {  
+  Transform transform;
+  m4 transformMatrix;
+  m3 normalMatrix;
+  ComponentType componentType;
+  union {
+    Model *model;
+    Camera *camera;
+    void *data;
+  } component;
+};

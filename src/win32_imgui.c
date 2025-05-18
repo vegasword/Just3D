@@ -11,12 +11,9 @@ typedef struct {
   Entity *entities;
   u32 *modelsCount;
   Model *models;
-  u32 *texturesCount;
-  u32 *textures;
 } ImGuiDebugData;
 
 static i32 newModelIndex = 0;
-static i32 newTextureIndex = 0;
 
 void InitImGui(HWND window)
 {
@@ -80,20 +77,20 @@ void UpdateImGui(ImGuiDebugData *data)
             {              
               igSeparatorText("Transform");
 
-              Transform *transform = entity->transform;              
+              Transform *transform = &entity->transform;              
               if (igDragFloat3("Position", (f32 *)&transform->position, 0.01f, 0, 0, "%f", ImGuiInputTextFlags_CharsDecimal))
               {
-                UpdateEntityCenteredModelMatrix(entity);
+                UpdateEntityCenteredTransformMatrix(entity);
               }
       
               if (igDragFloat3("Rotation", (f32 *)&transform->rotation, 0.01f, 0, 0, "%f", ImGuiInputTextFlags_CharsDecimal))
               {
-                UpdateEntityCenteredModelMatrix(entity);
+                UpdateEntityCenteredTransformMatrix(entity);
               }
       
               if (igDragFloat3("Scale", (f32 *)&transform->scale, 0.01f, 0.001f, FLT_MAX, "%f", ImGuiInputTextFlags_CharsDecimal))
               {
-                UpdateEntityCenteredModelMatrix(entity);
+                UpdateEntityCenteredTransformMatrix(entity);
               }
 
               if (igButton("Copy transform", (ImVec2){0}))
@@ -110,18 +107,29 @@ void UpdateImGui(ImGuiDebugData *data)
                 
                 igSetClipboardText(transformString);
               }
+              
+              if (entity->component.data)
+              {
+                igSeparatorText("Component");
+                                
+                switch (entity->componentType)
+                {
+                  case COMPONENT_MODEL: {
+                    Model *model = entity->component.model;
+                    if (igDragInt("Model", &newModelIndex, 0.05f, 0, *data->modelsCount - 1, "%d", ImGuiSliderFlags_AlwaysClamp))
+                    {
+                       model = &data->models[newModelIndex];
+                    }
+                    
+                    MetallicRoughnessMaterial *material = &model->material;
+                    igDragFloat4("Base color", (f32 *)&material->baseColorFactor, 0.01f, 0, 0, "%f", ImGuiInputTextFlags_CharsDecimal);
+                    igDragFloat("Metallic factor", (f32 *)&material->metallicFactor, 0.01f, 0, 1, "%f", ImGuiInputTextFlags_CharsDecimal);
+                    igDragFloat("Roughness factor", (f32 *)&material->roughnessFactor, 0.01f, 0, 1, "%f", ImGuiInputTextFlags_CharsDecimal);
+                  } break;
 
-              igSeparatorText("Rendering");
-              
-              if (igDragInt("Model", &newModelIndex, 0.05f, 0, *data->modelsCount - 1, "%d", ImGuiSliderFlags_AlwaysClamp))
-              {
-                entity->model = &data->models[newModelIndex];
-              }
-              
-              if (igDragInt("Texture", &newTextureIndex, 0.05f, 0, *data->texturesCount - 1, "%d", ImGuiSliderFlags_AlwaysClamp))
-              {
-                entity->texture = data->textures[newTextureIndex];
-              }
+                  default: break;
+                }
+              }              
 
               igTreePop();
             }

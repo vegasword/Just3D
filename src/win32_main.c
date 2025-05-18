@@ -24,36 +24,41 @@ i32 WINAPI WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdsh
 
   u32 pipelinesCount = 1;
   Pipeline *pipelines = (Pipeline *)Alloc(&arena, pipelinesCount * sizeof(Pipeline));
-  pipelines[0] = SetupPipeline(&arena, 2, &shaders[0]);
+  pipelines[0] = CreatePipeline(&arena, 2, &shaders[0]);
 
-  u32 texturesCount = 1;
-  u32 *textures = (u32 *)Alloc(&arena, texturesCount * sizeof(u32));
-  textures[0] = CreateTexture("data/textures/crt.png");
-    
   u32 modelsCount = 1;
   Model *models = (Model *)Alloc(&arena, modelsCount * sizeof(Model));
-  models[0] = CreateModel(&arena, "data/models/crt.model");
-      
+  models[0] = LoadModel(&arena, "data/models/helmet.model");
+  models[0].material.baseColor = LoadTexture("data/textures/helmet_base_color.png");
+  models[0].material.metallicRoughness = LoadTexture("data/textures/helmet_metallic_roughness.png");
+  models[0].material.normalMap = LoadTexture("data/textures/helmet_normal.png");
+  models[0].material.ambientOcclusion = LoadTexture("data/textures/helmet_ambient_occlusion.png");
+    
   Camera *camera = (Camera *)Alloc(&arena, sizeof(Camera));
   camera->fov = 0.25;
   camera->yaw = 0.5;
-  camera->transform = New(&arena, Transform);
-  camera->view = New(&arena, m4);
-  camera->projection = New(&arena, m4);
   
-  u32 entitiesCount = 1;
+  u32 entitiesCount = 2;
   Entity *entities = (Entity *)Alloc(&arena, entitiesCount * sizeof(Entity));
   entities[0] = (Entity) {
-    .transform = New(&arena, Transform),
-    .model = &models[0],
-    .texture = textures[0]
+    .componentType = COMPONENT_CAMERA,
+    .component.camera = camera,
   };
-  *entities[0].transform =  (Transform) { .position = (v3){-0.15,-0.15,1}, .rotation = (v3){0,0.5,0}, .scale = (v3){1,1,1} };
+  entities[1] = (Entity) {
+    .transform =  (Transform) {
+      .position = (v3){0, 0, 1},
+      .rotation = (v3){0,0,0},
+      .scale = (v3){1,1,1}
+    },
+    .componentType = COMPONENT_MODEL,
+    .component.model = &models[0],
+  };
   
   for (u32 i = 0; i < entitiesCount; ++i)
   {
-    entities[i].modelMatrix = (m4 *)Alloc(&arena, sizeof(m4));
-    UpdateEntityCenteredModelMatrix(&entities[i]);        
+    Entity *entity = &entities[i];
+    UpdateEntityCenteredTransformMatrix(entity);        
+    entity->normalMatrix = ComputeNormalMatrix(entity->transformMatrix);
   }
       
 #if DEBUG && DEBUG_IMGUI
@@ -66,8 +71,6 @@ i32 WINAPI WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdsh
     .models = models,
     .entitiesCount = &entitiesCount,
     .entities = entities,
-    .texturesCount = &texturesCount,
-    .textures = textures,
   };
   
   DEVMODE devMode = (DEVMODE) { .dmSize = sizeof(DEVMODE) };
@@ -105,35 +108,45 @@ i32 WINAPI WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdsh
       else
       {
         Quit(window, win32);
-        Destroy(&arena);
         return 0;
       }
     }
       
     camera->aspect = win32->viewportAspect;
     ApplyNonLinearMouseFiltering(inputs);    
-    UpdateCamera(camera, *inputs, deltaTime);
+    UpdateCamera(&entities[0], *inputs, deltaTime);
     
     glClearColor(0, 0, 0, 0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   
     {
       GLint vertexShader = pipelines[0].shaders[0].program;
+      glBindProgramPipeline(pipelines[0].program);
   
       for (u32 i = 0; i < entitiesCount; ++i)
       {
-        Entity *entity = &entities[i];
-        if (entity->model)
+        Entity entity = entities[i];
+        if (entity.componentType == COMPONENT_MODEL)
         {
-          Model model = *entity->model;
-          glBindProgramPipeline(pipelines[0].program);
-      
-          m4 mvp = ComputeMVP(entity->modelMatrix, camera);
+          
+          Model model = *entity.component.model;
+          MetallicRoughnessMaterial material = model.material;
+          m4 mvp = ComputeModelViewProjectionMatrix(entity.transformMatrix, camera);
+          
           glProgramUniformMatrix4fv(vertexShader, 0, 1, false, (GLfloat *)&mvp);
-          glProgramUniform2fv(vertexShader, 1, 1, (GLfloat *)&model.uvScale);
-          glProgramUniform2fv(vertexShader, 2, 1, (GLfloat *)&model.uvOffset);
-      
-          glBindTextureUnit(0, entity->texture);
+          glProgramUniformMatrix3fv(vertexShader, 1, 1, false, (GLfloat *)&entity.normalMatrix);
+          glProgramUniform2fv(vertexShader, 2, 1, (GLfloat *)&model.uvScale);
+          glProgramUniform2fv(vertexShader, 3, 1, (GLfloat *)&model.uvOffset);
+          glProgramUniform3fv(vertexShader, 4, 1, (GLfloat *)&entity.transform.position);
+          glProgramUniform4fv(vertexShader, 5, 1, (GLfloat *)&material.baseColorFactor);
+          glProgramUniform1fv(vertexShader, 6, 1, (GLfloat *)&material.metallicFactor);
+          glProgramUniform1fv(vertexShader, 7, 1, (GLfloat *)&material.roughnessFactor);
+  
+          glBindTextureUnit(0, material.baseColor);
+          glBindTextureUnit(1, material.metallicRoughness);
+          glBindTextureUnit(2, material.normalMap);
+          glBindTextureUnit(3, material.ambientOcclusion);
+          
           glBindVertexArray(model.vao);
     
           //TODO: Updated models indices for GL_TRIANGLE_STRIP (requires meshopt impl)
@@ -147,10 +160,7 @@ i32 WINAPI WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdsh
     imguiDebugData.frameDelay = deltaTime - desiredDelay;
     UpdateImGui(&imguiDebugData);    
     RenderImGui();
-    i32 swapped = SwapBuffers(win32->dc);
-    assert(swapped);
-#else
-    SwapBuffers(win32->dc);
 #endif
+    SwapBuffers(win32->dc);
   }
 }  

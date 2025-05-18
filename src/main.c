@@ -34,6 +34,7 @@
   #include "arena.c"
 #endif
 
+#include "enum.c"
 #include "struct.c"
 #include "math.c"
 #include "entity.c"
