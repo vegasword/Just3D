@@ -15,8 +15,8 @@ i32 WINAPI WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdsh
   win32->inputs = inputs;
           
   Shader *shaders = (Shader *)Alloc(&arena, 4 * sizeof(Shader));
-  shaders[0] = CompileShader(&arena, "data/shaders/model.vert", GL_VERTEX_SHADER);
-  shaders[1] = CompileShader(&arena, "data/shaders/model.frag", GL_FRAGMENT_SHADER);
+  shaders[0] = CompileShader(&arena, "data/shaders/vertex.glsl", GL_VERTEX_SHADER);
+  shaders[1] = CompileShader(&arena, "data/shaders/fragment.glsl", GL_FRAGMENT_SHADER);
   
 #if DEBUG
   shaderCompilationFatal = false;
