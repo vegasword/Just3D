@@ -61,7 +61,7 @@ static PFNWGL(CHOOSEPIXELFORMATARB) wglChoosePixelFormatARB = NULL;
 static PFNWGL(CREATECONTEXTATTRIBSARB) wglCreateContextAttribsARB = NULL;
 
 #if DEBUG
-static bool shaderCompilationFatal = true;
+static bool shaderRuntimeCompilationFatal = true;
 #endif
 
 static u32 shaderTypesBit[] = {
@@ -281,7 +281,9 @@ Model LoadModel(Arena *arena, const char *path)
   if (file != INVALID_HANDLE_VALUE)
   {
     ReadFile(file, &model.indicesCount, 4 * sizeof(u32), 0, NULL);
-    ReadFile(file, &model.uvScale, 10 * sizeof(f32), 0, NULL);
+    ReadFile(file, &model.uvScale, 2 * sizeof(v2), 0, NULL);
+    ReadFile(file, &model.baseColor, sizeof(v4), 0, NULL);
+    ReadFile(file, &model.metallicFactor, 2 * sizeof(f32), 0, NULL);
     
     u16 bounds[6] = {0};
     ReadFile(file, &bounds, 6 * sizeof(u16), 0, NULL);
@@ -383,13 +385,9 @@ Shader CompileShader(Arena *arena, const char *path, GLenum type)
     char logs[1024];
     glGetProgramInfoLog(program, sizeof(logs), NULL, logs);
     glDeleteProgram(program);
-    
+    Log("Error on %s:\n%s", path, logs);
 #if DEBUG
-    if (shaderCompilationFatal)
-    {
-      Log("Error on %s:\n%s", path, logs);
-      assert(0);
-    }
+    assert(!shaderRuntimeCompilationFatal);
 #endif
   }
   
@@ -470,12 +468,9 @@ void ShadersHotReloading(Arena *arena, Pipeline *pipelines, u32 pipelinesCount)
           }
           else
           {
-            Log("Errors in %s! Waiting for changes...\n", path);
-            GetShaderNewWriteTime(&currentPipeline->shaders[j], &prevWrite, &lastWrite);
-            while (prevWrite.QuadPart == lastWrite.QuadPart)
-            {
-              GetShaderNewWriteTime(&currentPipeline->shaders[j], &prevWrite, &lastWrite);
-            }
+            Log("Waiting for changes...\n");
+            do GetShaderNewWriteTime(&currentPipeline->shaders[j], &prevWrite, &lastWrite);
+            while (prevWrite.QuadPart == lastWrite.QuadPart);
           }
         }
       }     

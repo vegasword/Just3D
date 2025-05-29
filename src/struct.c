@@ -47,30 +47,28 @@ struct Bounds {
   v3 min, max;
 };
 
-struct MetallicRoughnessMaterial {
-  v4 baseColorFactor;
-  f32 metallicFactor;
-  f32 roughnessFactor;
-  u32 baseColor;
-  u32 metallicRoughness;
-  u32 normalMap;
-  u32 ambientOcclusion;
-};
-
 struct Model {
+  Entity *entity;
   u32 indicesCount;
   u32 indicesSize;
   u32 verticesCount;
   u32 verticesSize;  
   v2 uvScale;
   v2 uvOffset;
+  v4 baseColor;
+  f32 metallicFactor;
+  f32 roughnessFactor;
   Bounds bounds;
   u32 vao;
-  MetallicRoughnessMaterial material;
+  u32 baseColorMap;
+  u32 metallicRoughnessMap;
+  u32 normalMap;
+  u32 ambientOcclusionMap;
 };
 
 struct Camera {
   Entity *entity;
+  f32 speed;
   f32 pitch;
   f32 yaw;
   f32 fov;

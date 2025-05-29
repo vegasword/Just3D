@@ -1,6 +1,6 @@
 i32 WINAPI WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdshow)
 {
-  hInstPrev; cmdline; cmdshow;
+  hInstPrev; cmdline; cmdshow; // To avoid stupid warnings
   
   Arena arena;
   Init(&arena, VirtualAlloc(NULL, 2*GB, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE), 2*GB);
@@ -15,11 +15,11 @@ i32 WINAPI WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdsh
   win32->inputs = inputs;
           
   Shader *shaders = (Shader *)Alloc(&arena, 4 * sizeof(Shader));
-  shaders[0] = CompileShader(&arena, "data/shaders/model.vert", GL_VERTEX_SHADER);
-  shaders[1] = CompileShader(&arena, "data/shaders/model.frag", GL_FRAGMENT_SHADER);
+  shaders[0] = CompileShader(&arena, "data/shaders/vertex.glsl", GL_VERTEX_SHADER);
+  shaders[1] = CompileShader(&arena, "data/shaders/fragment.glsl", GL_FRAGMENT_SHADER);
   
 #if DEBUG
-  shaderCompilationFatal = false;
+  shaderRuntimeCompilationFatal = false;
 #endif
 
   u32 pipelinesCount = 1;
@@ -29,25 +29,27 @@ i32 WINAPI WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdsh
   u32 modelsCount = 1;
   Model *models = (Model *)Alloc(&arena, modelsCount * sizeof(Model));
   models[0] = LoadModel(&arena, "data/models/helmet.model");
-  models[0].material.baseColor = LoadTexture("data/textures/helmet_base_color.png");
-  models[0].material.metallicRoughness = LoadTexture("data/textures/helmet_metallic_roughness.png");
-  models[0].material.normalMap = LoadTexture("data/textures/helmet_normal.png");
-  models[0].material.ambientOcclusion = LoadTexture("data/textures/helmet_ambient_occlusion.png");
+  models[0].baseColorMap = LoadTexture("data/textures/helmet_base_color.png");
+  models[0].metallicRoughnessMap = LoadTexture("data/textures/helmet_metallic_roughness.png");
+  models[0].normalMap = LoadTexture("data/textures/helmet_normal.png");
+  models[0].ambientOcclusionMap = LoadTexture("data/textures/helmet_ambient_occlusion.png");
     
   Camera *camera = (Camera *)Alloc(&arena, sizeof(Camera));
-  camera->fov = 0.25;
-  camera->yaw = 0.5;
+  camera->speed = 0.0005f;
+  camera->fov = 0.25f;
+  camera->yaw = 0.5f;
   
   u32 entitiesCount = 2;
   Entity *entities = (Entity *)Alloc(&arena, entitiesCount * sizeof(Entity));
   entities[0] = (Entity) {
+    .transform = (Transform) { .position = (v3){0.092f,0.116f,0.130f} },
     .componentType = COMPONENT_CAMERA,
     .component.camera = camera,
   };
   entities[1] = (Entity) {
-    .transform =  (Transform) {
-      .position = (v3){0, 0, 1},
-      .rotation = (v3){0,0,0},
+    .transform = (Transform) {
+      .position = (v3){0,0,0.5f},
+      .rotation = (v3){0,0.5f,0},
       .scale = (v3){1,1,1}
     },
     .componentType = COMPONENT_MODEL,
@@ -57,6 +59,7 @@ i32 WINAPI WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdsh
   for (u32 i = 0; i < entitiesCount; ++i)
   {
     Entity *entity = &entities[i];
+    AttachComponent(entity, entity->component.data);
     UpdateEntityCenteredTransformMatrix(entity);        
     entity->normalMatrix = ComputeNormalMatrix(entity->transformMatrix);
   }
@@ -113,7 +116,7 @@ i32 WINAPI WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdsh
     }
       
     camera->aspect = win32->viewportAspect;
-    ApplyNonLinearMouseFiltering(inputs);    
+    ApplyNonLinearMouseFiltering(inputs);
     UpdateCamera(&entities[0], *inputs, deltaTime);
     
     glClearColor(0, 0, 0, 0);
@@ -130,22 +133,23 @@ i32 WINAPI WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdsh
         {
           
           Model model = *entity.component.model;
-          MetallicRoughnessMaterial material = model.material;
           m4 mvp = ComputeModelViewProjectionMatrix(entity.transformMatrix, camera);
+          v3 cameraPosition = camera->entity->transform.position;
+          cameraPosition.Z *= -1; //ISSUE: It seems that there is a handedness issue in my OpenGL / GLSL logic that I should investigate
           
           glProgramUniformMatrix4fv(vertexShader, 0, 1, false, (GLfloat *)&mvp);
           glProgramUniformMatrix3fv(vertexShader, 1, 1, false, (GLfloat *)&entity.normalMatrix);
           glProgramUniform2fv(vertexShader, 2, 1, (GLfloat *)&model.uvScale);
           glProgramUniform2fv(vertexShader, 3, 1, (GLfloat *)&model.uvOffset);
-          glProgramUniform3fv(vertexShader, 4, 1, (GLfloat *)&entity.transform.position);
-          glProgramUniform4fv(vertexShader, 5, 1, (GLfloat *)&material.baseColorFactor);
-          glProgramUniform1fv(vertexShader, 6, 1, (GLfloat *)&material.metallicFactor);
-          glProgramUniform1fv(vertexShader, 7, 1, (GLfloat *)&material.roughnessFactor);
+          glProgramUniform3fv(vertexShader, 4, 1, (GLfloat *)&cameraPosition);
+          glProgramUniform4fv(vertexShader, 5, 1, (GLfloat *)&model.baseColor);
+          glProgramUniform1fv(vertexShader, 6, 1, (GLfloat *)&model.metallicFactor);
+          glProgramUniform1fv(vertexShader, 7, 1, (GLfloat *)&model.roughnessFactor);
   
-          glBindTextureUnit(0, material.baseColor);
-          glBindTextureUnit(1, material.metallicRoughness);
-          glBindTextureUnit(2, material.normalMap);
-          glBindTextureUnit(3, material.ambientOcclusion);
+          glBindTextureUnit(0, model.baseColorMap);
+          glBindTextureUnit(1, model.metallicRoughnessMap);
+          glBindTextureUnit(2, model.normalMap);
+          glBindTextureUnit(3, model.ambientOcclusionMap);
           
           glBindVertexArray(model.vao);
     

@@ -101,7 +101,7 @@ void UpdateImGui(ImGuiDebugData *data)
                 v3 rotation = transform->rotation;
                 v3 scale = transform->scale;
                 
-                igImFormatString(transformString, sizeof(transform),
+                igImFormatString(transformString, sizeof(transformString),
                                  "(Transform){ (v3){%.3f,%.3f,%.3f}, (v3){%.3f,%.3f,%.3f}, (v3){%.3f,%.3f,%.3f} }",
                                  position.X, position.Y, position.Z, rotation.X, rotation.Y, rotation.Z, scale.X, scale.Y, scale.Z);
                 
@@ -114,6 +114,12 @@ void UpdateImGui(ImGuiDebugData *data)
                                 
                 switch (entity->componentType)
                 {
+                  case COMPONENT_CAMERA: {
+                    Camera *camera = entity->component.camera;
+                    igDragFloat("Speed", &camera->speed, 0.0005f, 0.0005f, 0.5f, "%f", ImGuiInputTextFlags_CharsDecimal);
+                    igDragFloat("Field of view", &camera->fov, 0.001f, HMM_AngleDeg(50), HMM_AngleDeg(120), "%.4f", ImGuiInputTextFlags_CharsDecimal);                   
+                  } break;
+                  
                   case COMPONENT_MODEL: {
                     Model *model = entity->component.model;
                     if (igDragInt("Model", &newModelIndex, 0.05f, 0, *data->modelsCount - 1, "%d", ImGuiSliderFlags_AlwaysClamp))
@@ -121,10 +127,9 @@ void UpdateImGui(ImGuiDebugData *data)
                        model = &data->models[newModelIndex];
                     }
                     
-                    MetallicRoughnessMaterial *material = &model->material;
-                    igDragFloat4("Base color", (f32 *)&material->baseColorFactor, 0.01f, 0, 0, "%f", ImGuiInputTextFlags_CharsDecimal);
-                    igDragFloat("Metallic factor", (f32 *)&material->metallicFactor, 0.01f, 0, 1, "%f", ImGuiInputTextFlags_CharsDecimal);
-                    igDragFloat("Roughness factor", (f32 *)&material->roughnessFactor, 0.01f, 0, 1, "%f", ImGuiInputTextFlags_CharsDecimal);
+                    igDragFloat4("Base color", (f32 *)&model->baseColor, 0.01f, 0, 0, "%f", ImGuiInputTextFlags_CharsDecimal);
+                    igDragFloat("Metallic factor", (f32 *)&model->metallicFactor, 0.01f, 0, 1, "%.3f", ImGuiInputTextFlags_CharsDecimal);
+                    igDragFloat("Roughness factor", (f32 *)&model->roughnessFactor, 0.01f, 0, 1, "%.3f", ImGuiInputTextFlags_CharsDecimal);
                   } break;
 
                   default: break;

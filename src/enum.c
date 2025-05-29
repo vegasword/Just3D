@@ -1,6 +1,6 @@
 typedef enum ComponentType {
   UNKNOWN_COMPONENT,
-  COMPONENT_MODEL,
   COMPONENT_CAMERA,
+  COMPONENT_MODEL,
   COMPONENT_TYPES_COUNT
 } ComponentType;

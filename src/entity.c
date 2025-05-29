@@ -29,7 +29,10 @@ void UpdateCamera(Entity *entity, GameInputs inputs, f32 deltaTime)
   GameButtons buttons = inputs.buttons;
   
   f32 mouseSpeed = deltaTime * 0.01f;
-  f32 pitch = camera->pitch, yaw = camera->yaw, dX = HMM_SinF(yaw), dZ = HMM_CosF(yaw);
+  f32 pitch = camera->pitch;
+  f32 yaw = camera->yaw;
+  f32 dX = HMM_SinF(yaw);
+  f32 dZ = HMM_CosF(yaw);
   v3 direction = {0};
   
   pitch += inputs.mousePosition.Y * mouseSpeed;
@@ -55,7 +58,7 @@ void UpdateCamera(Entity *entity, GameInputs inputs, f32 deltaTime)
 
   if (!isZeroV3(direction))
   {
-    direction = HMM_MulV3F(HMM_NormV3(direction), deltaTime * 0.003f);
+    direction = HMM_MulV3F(HMM_NormV3(direction), deltaTime * camera->speed);
     entity->transform.position = HMM_AddV3(cameraPosition, direction);
   }
   
@@ -63,4 +66,21 @@ void UpdateCamera(Entity *entity, GameInputs inputs, f32 deltaTime)
   camera->yaw = yaw;
   camera->view = HMM_InvGeneralM4(HMM_MulM4(translation, rotation));
   camera->projection = HMM_Perspective_RH_NO(camera->fov, camera->aspect, 0.01, 1000);
+}
+
+#define AttachComponentCase(entityType, structType)\
+case entityType: {\
+  ##structType## *entityComponent = (##structType## *)component;\
+  entity->component.data = entityComponent;\
+  entityComponent->entity = entity;\
+} break
+
+void AttachComponent(Entity *entity, void *component)
+{
+  switch (entity->componentType)
+  {
+    AttachComponentCase(COMPONENT_MODEL, Model);
+    AttachComponentCase(COMPONENT_CAMERA, Camera);
+    default: break;
+  }
 }
