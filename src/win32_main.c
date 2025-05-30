@@ -135,16 +135,16 @@ i32 WINAPI WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdsh
           Model model = *entity.component.model;
           m4 mvp = ComputeModelViewProjectionMatrix(entity.transformMatrix, camera);
           v3 cameraPosition = camera->entity->transform.position;
-          cameraPosition.Z *= -1; //ISSUE: It seems that there is a handedness issue in my OpenGL / GLSL logic that I should investigate
           
           glProgramUniformMatrix4fv(vertexShader, 0, 1, false, (GLfloat *)&mvp);
-          glProgramUniformMatrix3fv(vertexShader, 1, 1, false, (GLfloat *)&entity.normalMatrix);
-          glProgramUniform2fv(vertexShader, 2, 1, (GLfloat *)&model.uvScale);
-          glProgramUniform2fv(vertexShader, 3, 1, (GLfloat *)&model.uvOffset);
-          glProgramUniform3fv(vertexShader, 4, 1, (GLfloat *)&cameraPosition);
-          glProgramUniform4fv(vertexShader, 5, 1, (GLfloat *)&model.baseColor);
-          glProgramUniform1fv(vertexShader, 6, 1, (GLfloat *)&model.metallicFactor);
-          glProgramUniform1fv(vertexShader, 7, 1, (GLfloat *)&model.roughnessFactor);
+          glProgramUniformMatrix4fv(vertexShader, 4, 1, false, (GLfloat *)&entity.transformMatrix);
+          glProgramUniformMatrix3fv(vertexShader, 8, 1, false, (GLfloat *)&entity.normalMatrix);
+          glProgramUniform2fv(vertexShader, 11, 1, (GLfloat *)&model.uvScale);
+          glProgramUniform2fv(vertexShader, 12, 1, (GLfloat *)&model.uvOffset);
+          glProgramUniform3fv(vertexShader, 13, 1, (GLfloat *)&cameraPosition);
+          glProgramUniform4fv(vertexShader, 14, 1, (GLfloat *)&model.baseColor);
+          glProgramUniform1fv(vertexShader, 15, 1, (GLfloat *)&model.metallicFactor);
+          glProgramUniform1fv(vertexShader, 16, 1, (GLfloat *)&model.roughnessFactor);
   
           glBindTextureUnit(0, model.baseColorMap);
           glBindTextureUnit(1, model.metallicRoughnessMap);

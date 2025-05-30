@@ -23,6 +23,7 @@ LRESULT CALLBACK WindowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
     X(PFNGL(BINDVERTEXARRAY),           glBindVertexArray           )\
 \
     X(PFNGL(CREATESHADERPROGRAMV),      glCreateShaderProgramv      )\
+    X(PFNGL(VALIDATEPROGRAM),           glValidateProgram           )\
     X(PFNGL(GETPROGRAMIV),              glGetProgramiv              )\
     X(PFNGL(GETPROGRAMINFOLOG),         glGetProgramInfoLog         )\
     X(PFNGL(USEPROGRAM),                glUseProgram                )\
@@ -371,12 +372,16 @@ Shader CompileShader(Arena *arena, const char *path, GLenum type)
   fileBuffer[size] = '\0';
   
   GLuint program = glCreateShaderProgramv(type, 1, &fileBuffer);
+  glValidateProgram(program);
   
   TmpEnd(&tmpArena);
   
   GLint linked;
+  GLint validated;
   glGetProgramiv(program, GL_LINK_STATUS, &linked);
-  if (linked)
+  glGetProgramiv(program, GL_VALIDATE_STATUS, &validated);
+    
+  if (linked && validated)
   {
     shader.program = program;
   }
