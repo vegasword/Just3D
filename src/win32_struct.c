@@ -8,8 +8,8 @@ typedef struct {
 typedef struct {
   GLint program;
   GLenum type;
-  HANDLE file;
 #if DEBUG
+  HANDLE file;
   FILETIME lastWriteTime;
 #endif
 } Shader;

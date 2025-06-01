@@ -1,31 +1,11 @@
-void UpdateEntityCenteredTransformMatrix(Entity *entity)
+void UpdateCenteredModelTransformMatrix(Model *model)
 {
-  Bounds entityBounds = {0};
-  Model *model = entity->component.model;
-  Transform entityTransform = entity->transform;
-  
-  if (model)
-  {
-    entityBounds = model->bounds;
-  }
-  else
-  {
-    v3 entityPosition = entityTransform.position;
-    v3 entityHalfExtents = HMM_MulV3F(entityTransform.scale, 0.25f);
-    
-    entityBounds = (Bounds) {
-      .min = HMM_SubV3(entityPosition, entityHalfExtents),
-      .max = HMM_AddV3(entityPosition, entityHalfExtents)
-    };
-  }
-    
-  v3 pivot = HMM_DivV3F(HMM_SubV3(entityBounds.max, entityBounds.min), 2);
-  entity->transformMatrix = GetPivotedTransformMatrix(entityTransform, pivot);
+  v3 pivot = HMM_DivV3F(HMM_SubV3(model->bounds.max, model->bounds.min), 2);
+  model->transformMatrix = GetPivotedTransformMatrix(model->transform, pivot);
 }
 
-void UpdateCamera(Entity *entity, GameInputs inputs, f32 deltaTime)
+void UpdateCamera(Camera *camera, GameInputs inputs, f32 deltaTime)
 {
-  Camera *camera = entity->component.camera;
   GameButtons buttons = inputs.buttons;
   
   f32 mouseSpeed = deltaTime * 0.01f;
@@ -50,7 +30,7 @@ void UpdateCamera(Entity *entity, GameInputs inputs, f32 deltaTime)
   if (buttons.moveUp)   { direction.Y++; }
   if (buttons.moveDown) { direction.Y--; }
   
-  v3 cameraPosition = entity->transform.position;
+  v3 cameraPosition = camera->transform.position;
   m4 translation = HMM_Translate(cameraPosition);
   qt qPitch = HMM_QFromAxisAngle_RH((v3){-1, 0, 0}, pitch);
   qt qYaw = HMM_QFromAxisAngle_RH((v3){0, -1, 0}, yaw);
@@ -59,28 +39,11 @@ void UpdateCamera(Entity *entity, GameInputs inputs, f32 deltaTime)
   if (!isZeroV3(direction))
   {
     direction = HMM_MulV3F(HMM_NormV3(direction), deltaTime * camera->speed);
-    entity->transform.position = HMM_AddV3(cameraPosition, direction);
+    camera->transform.position = HMM_AddV3(cameraPosition, direction);
   }
   
   camera->pitch = pitch;
   camera->yaw = yaw;
-  camera->view = HMM_InvGeneralM4(HMM_MulM4(translation, rotation));
-  camera->projection = HMM_Perspective_RH_NO(camera->fov, camera->aspect, 0.01, 1000);
-}
-
-#define AttachComponentCase(entityType, structType)\
-case entityType: {\
-  ##structType## *entityComponent = (##structType## *)component;\
-  entity->component.data = entityComponent;\
-  entityComponent->entity = entity;\
-} break
-
-void AttachComponent(Entity *entity, void *component)
-{
-  switch (entity->componentType)
-  {
-    AttachComponentCase(COMPONENT_MODEL, Model);
-    AttachComponentCase(COMPONENT_CAMERA, Camera);
-    default: break;
-  }
+  camera->viewMatrix = HMM_InvGeneralM4(HMM_MulM4(translation, rotation));
+  camera->projectionMatrix = HMM_Perspective_RH_NO(camera->fov, camera->aspect, 0.01, 1000);
 }

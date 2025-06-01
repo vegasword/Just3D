@@ -9,13 +9,15 @@ LRESULT CALLBACK WindowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
 
 #define GL_FUNC(X) \
     X(PFNGL(CREATEBUFFERS),             glCreateBuffers             )\
+    X(PFNGL(NAMEDBUFFERDATA),           glNamedBufferData           )\
     X(PFNGL(NAMEDBUFFERSTORAGE),        glNamedBufferStorage        )\
+    X(PFNGL(NAMEDBUFFERSUBDATA),        glNamedBufferSubData        )\
+    X(PFNGL(BINDBUFFERBASE),            glBindBufferBase            )\
 \
     X(PFNGL(CREATEVERTEXARRAYS),        glCreateVertexArrays        )\
     X(PFNGL(VERTEXARRAYATTRIBBINDING),  glVertexArrayAttribBinding  )\
     X(PFNGL(VERTEXARRAYATTRIBFORMAT),   glVertexArrayAttribFormat   )\
     X(PFNGL(VERTEXARRAYBINDINGDIVISOR), glVertexArrayBindingDivisor )\
-    X(PFNGL(NAMEDBUFFERSUBDATA),        glNamedBufferSubData        )\
     X(PFNGL(VERTEXARRAYATTRIBIFORMAT),  glVertexArrayAttribIFormat  )\
     X(PFNGL(VERTEXARRAYVERTEXBUFFER),   glVertexArrayVertexBuffer   )\
     X(PFNGL(VERTEXARRAYELEMENTBUFFER),  glVertexArrayElementBuffer  )\
@@ -158,7 +160,7 @@ HWND CreateOpenGLContext(HINSTANCE instance, Win32Context *context)
     .lpfnWndProc = WindowProc,
 #endif
     .hInstance = instance,
-    .lpszClassName = "Just3DClass",
+    .lpszClassName = WINDOW_TITLE"Class",
     .hCursor = LoadCursor(NULL, IDC_ARROW)
   };
   i32 result = RegisterClass(&windowClass);
@@ -166,7 +168,7 @@ HWND CreateOpenGLContext(HINSTANCE instance, Win32Context *context)
 
   GetWglFunctions();
   
-  HWND window = CreateWindowEx(0, "Just3DClass", "Just3D", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, instance, (LPVOID)context);
+  HWND window = CreateWindowEx(0, WINDOW_TITLE"Class", WINDOW_TITLE, WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, instance, (LPVOID)context);
   assert(window);
   
   context->dc = GetDC(window);
@@ -237,6 +239,11 @@ HWND CreateOpenGLContext(HINSTANCE instance, Win32Context *context)
     
   UpdateViewportDimensions(window);
   
+  char title[128] = WINDOW_TITLE;
+  strncat_s(title, 128, " - ", _TRUNCATE);
+  strncat_s(title, 128, (const char *)glGetString(GL_VERSION), _TRUNCATE);
+  SetWindowText(window, title);
+  
   return window;
 }
 
@@ -277,14 +284,15 @@ Model LoadModel(Arena *arena, const char *path)
   HANDLE file = CreateFile(path, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_READONLY, NULL);
   assert(file != INVALID_HANDLE_VALUE);
   
-  //TODO: Read whole file then attributions + SIMD optimizations
+  //TODO: Read whole file function for both LoadModel and CompileShader then manual attributions
   Model model = {0};
+  ModelHeader modelHeader = {0};
   if (file != INVALID_HANDLE_VALUE)
   {
-    ReadFile(file, &model.indicesCount, 4 * sizeof(u32), 0, NULL);
-    ReadFile(file, &model.uvScale, 2 * sizeof(v2), 0, NULL);
-    ReadFile(file, &model.baseColor, sizeof(v4), 0, NULL);
-    ReadFile(file, &model.metallicFactor, 2 * sizeof(f32), 0, NULL);
+    ReadFile(file, &modelHeader.indicesCount, sizeof(ModelHeader), 0, NULL);
+    model.indicesCount = modelHeader.indicesCount;
+    
+    ReadFile(file, &model.uvScale, 10 * sizeof(f32), 0, NULL);
     
     u16 bounds[6] = {0};
     ReadFile(file, &bounds, 6 * sizeof(u16), 0, NULL);
@@ -297,18 +305,18 @@ Model LoadModel(Arena *arena, const char *path)
     TmpArena tmpArena = {0};
     TmpBegin(&tmpArena, arena);
     
-    u16 *indices = (u16 *)Alloc(arena, model.indicesSize);
-    Vertex *vertices = (Vertex *)Alloc(arena, model.verticesSize);
-    ReadFile(file, indices, model.indicesSize, 0, NULL);
-    ReadFile(file, vertices, model.verticesSize, 0, NULL);
+    u16 *indices = (u16 *)Alloc(arena, modelHeader.indicesSize);
+    Vertex *vertices = (Vertex *)Alloc(arena, modelHeader.verticesSize);
+    ReadFile(file, indices, modelHeader.indicesSize, 0, NULL);
+    ReadFile(file, vertices, modelHeader.verticesSize, 0, NULL);
         
     GLuint vbo;
     glCreateBuffers(1, &vbo);
-    glNamedBufferStorage(vbo, model.verticesSize, vertices, GL_DYNAMIC_STORAGE_BIT);
+    glNamedBufferStorage(vbo, modelHeader.verticesSize, vertices, GL_DYNAMIC_STORAGE_BIT);
 
     GLuint ebo;
     glCreateBuffers(1, &ebo);
-    glNamedBufferStorage(ebo, model.indicesSize, indices, GL_DYNAMIC_STORAGE_BIT);
+    glNamedBufferStorage(ebo, modelHeader.indicesSize, indices, GL_DYNAMIC_STORAGE_BIT);
 
     glCreateVertexArrays(1, &model.vao);
     glVertexArrayVertexBuffer(model.vao, 0, vbo, 0, sizeof(Vertex));
@@ -372,34 +380,39 @@ Shader CompileShader(Arena *arena, const char *path, GLenum type)
   fileBuffer[size] = '\0';
   
   GLuint program = glCreateShaderProgramv(type, 1, &fileBuffer);
-  glValidateProgram(program);
-  
-  TmpEnd(&tmpArena);
-  
-  GLint linked;
-  GLint validated;
-  glGetProgramiv(program, GL_LINK_STATUS, &linked);
-  glGetProgramiv(program, GL_VALIDATE_STATUS, &validated);
     
-  if (linked && validated)
-  {
-    shader.program = program;
-  }
-  else
-  {
-    char logs[1024];
-    glGetProgramInfoLog(program, sizeof(logs), NULL, logs);
-    glDeleteProgram(program);
-    Log("Error on %s:\n%s", path, logs);
-#if DEBUG
-    assert(!shaderRuntimeCompilationFatal);
-#endif
+  GLint linked;
+  glGetProgramiv(program, GL_LINK_STATUS, &linked);
+    
+  if (linked)
+  {    
+    glValidateProgram(program);
+    GLint validated;
+    glGetProgramiv(program, GL_VALIDATE_STATUS, &validated);
+    if (validated)
+    {
+      shader.program = program;
+      goto shader_succesfully_compiled;
+    }
   }
   
+  GLint logsLength = 0;
+  glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logsLength);
+  char *logs = (char *)Alloc(arena, logsLength);
+  glGetProgramInfoLog(program, logsLength, NULL, logs);
+  glDeleteProgram(program);
+#if DEBUG
+  Log("Error on %s:\n%s", path, logs);
+  CloseHandle(shader.file);
+  assert(!shaderRuntimeCompilationFatal);
+#endif
+
+shader_succesfully_compiled:
+
 #ifndef DEBUG
   CloseHandle(shader.file);
 #endif
-
+  TmpEnd(&tmpArena);
   return shader;
 }
 
@@ -483,3 +496,12 @@ void ShadersHotReloading(Arena *arena, Pipeline *pipelines, u32 pipelinesCount)
   }
 }
 #endif
+
+u32 CreateUniformBufferObject(u32 binding, size_t size, GLenum usage)
+{
+  GLuint uniformBufferObject;
+  glCreateBuffers(1, &uniformBufferObject);
+  glNamedBufferData(uniformBufferObject, size, 0, usage);
+  glBindBufferBase(GL_UNIFORM_BUFFER, binding, uniformBufferObject);
+  return uniformBufferObject;
+}

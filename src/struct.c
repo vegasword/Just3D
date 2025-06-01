@@ -1,14 +1,8 @@
-typedef struct GameButtons GameButtons;
-typedef struct GameInputs GameInputs;
-typedef struct Transform Transform;
-typedef struct Vertex Vertex;
-typedef struct Bounds Bounds;
-typedef struct MetallicRoughnessMaterial MetallicRoughnessMaterial;
-typedef struct Model Model;
-typedef struct Camera Camera;
-typedef struct Entity Entity;
+/*
+// Gameplay
+*/
 
-struct GameButtons {
+typedef struct GameButtons {
   bool moveForward : 1;
   bool moveBackward : 1;
   bool moveLeft : 1;
@@ -18,9 +12,9 @@ struct GameButtons {
   bool back : 1;
   bool enter : 1;
   bool escape : 1;
-};
+} GameButtons;
 
-struct GameInputs {
+typedef struct GameInputs {
   v2 mousePosition;
   v2 lastAbsMousePosition;
   v2 deltaMousePos;
@@ -28,63 +22,85 @@ struct GameInputs {
   v2 *mousePosBuffer;
   bool isKeyPressed;
   GameButtons buttons;
-};
+} GameInputs;
 
-struct Transform {
+/*
+// Geometry
+*/
+
+typedef struct Transform {
   v3 position;
   v3 rotation;
   v3 scale;
-};
+} Transform;
 
-struct Vertex {
+typedef struct Vertex {
   u16 x, y, z;
   i8 nx, ny, nz;
   i8 tx, ty, tz, handedness;
   u16 u, v;
-};
+} Vertex;
 
-struct Bounds {
+typedef struct Bounds {
   v3 min, max;
-};
+} Bounds;
 
-struct Model {
-  Entity *entity;
+/*
+// Rendering
+*/
+
+typedef struct UniformBuffer
+{
+  m4 mvp;
+  m4 modelMatrix;
+  v4 normalMatrixFirstColumn;
+  v4 normalMatrixSecondColumn;
+  v4 normalMatrixThirdColumn;
+  v4 baseColor;
+  v4 cameraPosition;
+  v2 uvScale;
+  v2 uvOffset;
+  f32 metallicFactor;
+  f32 roughnessFactor;
+} UniformBuffer;
+
+/*
+// Entities
+*/
+
+typedef struct ModelHeader {
   u32 indicesCount;
   u32 indicesSize;
   u32 verticesCount;
-  u32 verticesSize;  
+  u32 verticesSize;
+} ModelHeader;
+
+typedef struct Model {
+  m4 transformMatrix;
+  m4 viewMatrix;
   v2 uvScale;
   v2 uvOffset;
   v4 baseColor;
   f32 metallicFactor;
   f32 roughnessFactor;
-  Bounds bounds;
-  u32 vao;
   u32 baseColorMap;
   u32 metallicRoughnessMap;
-  u32 normalMap;
   u32 ambientOcclusionMap;
-};
+  u32 normalMap;
+  u32 vao;
+  u32 indicesCount;
+  Transform transform;
+  Bounds bounds;
+} Model;
 
-struct Camera {
-  Entity *entity;
+typedef struct Camera {
+  m4 transformMatrix;
+  m4 viewMatrix;
+  m4 projectionMatrix;
   f32 speed;
   f32 pitch;
   f32 yaw;
   f32 fov;
   f32 aspect;
-  m4 view;
-  m4 projection;
-};
-
-struct Entity {  
   Transform transform;
-  m4 transformMatrix;
-  m3 normalMatrix;
-  ComponentType componentType;
-  union {
-    Model *model;
-    Camera *camera;
-    void *data;
-  } component;
-};
+} Camera;

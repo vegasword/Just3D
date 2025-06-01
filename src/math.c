@@ -44,7 +44,7 @@ m4 GetPivotedTransformMatrix(Transform transform, v3 pivot)
 
 m4 ComputeModelViewProjectionMatrix(m4 modelMatrix, Camera *camera)
 {
-  return HMM_MulM4(camera->projection, HMM_MulM4(camera->view, modelMatrix));
+  return HMM_MulM4(camera->projectionMatrix, HMM_MulM4(camera->viewMatrix, modelMatrix));
 }
 
 m3 ComputeNormalMatrix(m4 modelMatrix)

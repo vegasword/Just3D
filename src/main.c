@@ -1,3 +1,5 @@
+#define WINDOW_TITLE "Just3D"
+
 #if DEBUG
 #define DEBUG_IMGUI 1
 #endif
@@ -34,7 +36,6 @@
   #include "arena.c"
 #endif
 
-#include "enum.c"
 #include "struct.c"
 #include "math.c"
 #include "entity.c"

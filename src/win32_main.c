@@ -1,6 +1,6 @@
 i32 WINAPI WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdshow)
 {
-  hInstPrev; cmdline; cmdshow; // To avoid stupid warnings
+  hInstPrev; cmdline; cmdshow; // To avoid stupid MSVC warnings
   
   Arena arena;
   Init(&arena, VirtualAlloc(NULL, 2*GB, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE), 2*GB);
@@ -33,36 +33,25 @@ i32 WINAPI WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdsh
   models[0].metallicRoughnessMap = LoadTexture("data/textures/helmet_metallic_roughness.png");
   models[0].normalMap = LoadTexture("data/textures/helmet_normal.png");
   models[0].ambientOcclusionMap = LoadTexture("data/textures/helmet_ambient_occlusion.png");
-    
+  models[0].transform = (Transform) {
+    .position = (v3){0,0,0.5f},
+    .rotation = (v3){0,0.5f,0},
+    .scale = (v3){1,1,1}
+  };
+  
+  for (u32 i = 0; i < modelsCount; ++i)
+  {
+    UpdateCenteredModelTransformMatrix(&models[i]);        
+  }
+      
   Camera *camera = (Camera *)Alloc(&arena, sizeof(Camera));
+  camera->transform = (Transform) { .position = (v3){0.092f,0.116f,0.130f} },
   camera->speed = 0.0005f;
   camera->fov = 0.25f;
   camera->yaw = 0.5f;
   
-  u32 entitiesCount = 2;
-  Entity *entities = (Entity *)Alloc(&arena, entitiesCount * sizeof(Entity));
-  entities[0] = (Entity) {
-    .transform = (Transform) { .position = (v3){0.092f,0.116f,0.130f} },
-    .componentType = COMPONENT_CAMERA,
-    .component.camera = camera,
-  };
-  entities[1] = (Entity) {
-    .transform = (Transform) {
-      .position = (v3){0,0,0.5f},
-      .rotation = (v3){0,0.5f,0},
-      .scale = (v3){1,1,1}
-    },
-    .componentType = COMPONENT_MODEL,
-    .component.model = &models[0],
-  };
-  
-  for (u32 i = 0; i < entitiesCount; ++i)
-  {
-    Entity *entity = &entities[i];
-    AttachComponent(entity, entity->component.data);
-    UpdateEntityCenteredTransformMatrix(entity);        
-    entity->normalMatrix = ComputeNormalMatrix(entity->transformMatrix);
-  }
+  u32 uniformBufferObject = CreateUniformBufferObject(4, sizeof(UniformBuffer), GL_DYNAMIC_DRAW);
+  UniformBuffer *uniformBuffer = New(&arena, UniformBuffer);
       
 #if DEBUG && DEBUG_IMGUI
   InitImGui(window);
@@ -72,8 +61,6 @@ i32 WINAPI WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdsh
     .win32 = win32,
     .modelsCount = &modelsCount,
     .models = models,
-    .entitiesCount = &entitiesCount,
-    .entities = entities,
   };
   
   DEVMODE devMode = (DEVMODE) { .dmSize = sizeof(DEVMODE) };
@@ -117,45 +104,43 @@ i32 WINAPI WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdsh
       
     camera->aspect = win32->viewportAspect;
     ApplyNonLinearMouseFiltering(inputs);
-    UpdateCamera(&entities[0], *inputs, deltaTime);
+    UpdateCamera(camera, *inputs, deltaTime);
     
     glClearColor(0, 0, 0, 0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   
-    {
-      GLint vertexShader = pipelines[0].shaders[0].program;
+    {      
       glBindProgramPipeline(pipelines[0].program);
-  
-      for (u32 i = 0; i < entitiesCount; ++i)
+      
+      for (u32 i = 0; i < modelsCount; ++i)
       {
-        Entity entity = entities[i];
-        if (entity.componentType == COMPONENT_MODEL)
-        {
+        Model model = models[i];
+        m4 modelTransformMatrix = model.transformMatrix;
+        m3 normalMatrix = ComputeNormalMatrix(modelTransformMatrix);
+        
+        uniformBuffer->mvp = ComputeModelViewProjectionMatrix(modelTransformMatrix, camera);
+        uniformBuffer->modelMatrix = modelTransformMatrix;
+        uniformBuffer->normalMatrixFirstColumn = (v4){ .XYZ = normalMatrix.Columns[0] };
+        uniformBuffer->normalMatrixSecondColumn = (v4){ .XYZ = normalMatrix.Columns[1] };
+        uniformBuffer->normalMatrixThirdColumn = (v4){ .XYZ = normalMatrix.Columns[2] };
+        uniformBuffer->cameraPosition = (v4){ .XYZ = camera->transform.position };
+        uniformBuffer->baseColor = model.baseColor;
+        uniformBuffer->uvScale = model.uvScale;
+        uniformBuffer->uvOffset = model.uvOffset;
+        uniformBuffer->metallicFactor = model.metallicFactor;
+        uniformBuffer->roughnessFactor = model.roughnessFactor;
+        
+        glNamedBufferSubData(uniformBufferObject, 0, sizeof(UniformBuffer), uniformBuffer);
           
-          Model model = *entity.component.model;
-          m4 mvp = ComputeModelViewProjectionMatrix(entity.transformMatrix, camera);
-          v3 cameraPosition = camera->entity->transform.position;
-          
-          glProgramUniformMatrix4fv(vertexShader, 0, 1, false, (GLfloat *)&mvp);
-          glProgramUniformMatrix4fv(vertexShader, 4, 1, false, (GLfloat *)&entity.transformMatrix);
-          glProgramUniformMatrix3fv(vertexShader, 8, 1, false, (GLfloat *)&entity.normalMatrix);
-          glProgramUniform2fv(vertexShader, 11, 1, (GLfloat *)&model.uvScale);
-          glProgramUniform2fv(vertexShader, 12, 1, (GLfloat *)&model.uvOffset);
-          glProgramUniform3fv(vertexShader, 13, 1, (GLfloat *)&cameraPosition);
-          glProgramUniform4fv(vertexShader, 14, 1, (GLfloat *)&model.baseColor);
-          glProgramUniform1fv(vertexShader, 15, 1, (GLfloat *)&model.metallicFactor);
-          glProgramUniform1fv(vertexShader, 16, 1, (GLfloat *)&model.roughnessFactor);
+        glBindTextureUnit(0, model.baseColorMap);
+        glBindTextureUnit(1, model.metallicRoughnessMap);
+        glBindTextureUnit(2, model.normalMap);
+        glBindTextureUnit(3, model.ambientOcclusionMap);
+        
+        glBindVertexArray(model.vao);
   
-          glBindTextureUnit(0, model.baseColorMap);
-          glBindTextureUnit(1, model.metallicRoughnessMap);
-          glBindTextureUnit(2, model.normalMap);
-          glBindTextureUnit(3, model.ambientOcclusionMap);
-          
-          glBindVertexArray(model.vao);
-    
-          //TODO: Updated models indices for GL_TRIANGLE_STRIP (requires meshopt impl)
-          glDrawElements(GL_TRIANGLES, model.indicesCount, GL_UNSIGNED_SHORT, NULL);
-        }
+        //TODO: GL_TRIANGLE_STRIP rendering (requires meshopt impl in gltf2custom)
+        glDrawElements(GL_TRIANGLES, model.indicesCount, GL_UNSIGNED_SHORT, NULL);
       }
     }
     

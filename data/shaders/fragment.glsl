@@ -3,11 +3,15 @@
 #define REFLECTANCE 0.04
 #define PI 3.1415926535897932384626433832795
 #define INV_PI 0.31830988618379067153776752674503
+    
+const float lightIntensity = 5; // For now unitless
+const vec3 light = vec3(0.0, 1.0, -1.0); // Directional for now
+const vec3 normalIncidenceReflectance = vec3(REFLECTANCE);
 
 layout (location = 0) in vec3 position;
 layout (location = 1) in vec3 cameraPosition;
 layout (location = 2) in vec2 uv;
-layout (location = 3) in vec4 baseColorFactor;
+layout (location = 3) in vec4 baseColor;
 layout (location = 4) in float metallicFactor;
 layout (location = 5) in float roughnessFactor;
 layout (location = 6) in mat3 tbn;
@@ -40,15 +44,11 @@ vec3 SchlickFresnelVector(float viewDotHalf, vec3 normalIncidenceReflectance, ve
 }
 
 void main()
-{
-  float lightIntensity = 5; // For now unitless
-  vec3 normalIncidenceReflectance = vec3(REFLECTANCE);
-  
+{  
   vec3 view =  normalize(cameraPosition - position);
-  vec3 light = vec3(0.0, 1.0, -1.0); // Directional for now
   vec3 halfVector = normalize(view + light);
   
-  vec3 baseColor = texture(baseColorMap, uv).rgb * baseColorFactor.rgb;
+  vec3 baseColor = texture(baseColorMap, uv).rgb * baseColor.rgb;
   vec3 metallicRoughness = texture(metallicRoughnessMap, uv).rgb;
   vec3 normal = normalize(tbn * (texture(normalMap, uv).rgb * 2.0 - 1.0));
   float ambientOcclusion = texture(ambientOcclusionMap, uv).r;
