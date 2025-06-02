@@ -11,8 +11,6 @@ typedef struct {
   Model *models;
 } ImGuiDebugData;
 
-static i32 newModelIndex = 0;
-
 void InitImGui(HWND window)
 {
   ImGui imgui = { 0 };
@@ -68,6 +66,7 @@ void UpdateImGui(ImGuiDebugData *data)
           for (u32 i = 0; i < *data->modelsCount; ++i)
           {
             Model *model = &data->models[i];
+            ModelData modelData = model->data;
             
             igPushID_Ptr(model);
             
@@ -106,14 +105,16 @@ void UpdateImGui(ImGuiDebugData *data)
                 igSetClipboardText(transformString);
               }
               
-              if (igDragInt("Model", &newModelIndex, 0.05f, 0, *data->modelsCount - 1, "%d", ImGuiSliderFlags_AlwaysClamp))
-              {
-                 model = &data->models[newModelIndex];
-              }
+              igSeparatorText("Material properties");
               
-              igDragFloat4("Base color", (f32 *)&model->baseColor, 0.01f, 0, 0, "%f", ImGuiInputTextFlags_CharsDecimal);
-              igDragFloat("Metallic factor", (f32 *)&model->metallicFactor, 0.01f, 0, 1, "%.3f", ImGuiInputTextFlags_CharsDecimal);
-              igDragFloat("Roughness factor", (f32 *)&model->roughnessFactor, 0.01f, 0, 1, "%.3f", ImGuiInputTextFlags_CharsDecimal);
+              igText("Base color: "V4_FORMAT, V4_ARGS(modelData.baseColor));
+              igText("Metallic factor: %.2f ", modelData.metallicFactor);
+              igText("Roughness factor: %.2f ", modelData.roughnessFactor);
+              
+              igSeparatorText("Textures properties");
+              
+              igText("UV Offset: "V2_FORMAT, V2_ARGS(modelData.uvOffset));
+              igText("UV Scale: "V2_FORMAT, V2_ARGS(modelData.uvScale));
 
               igTreePop();
             }

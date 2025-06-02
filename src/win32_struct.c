@@ -5,11 +5,16 @@ typedef struct {
   u64 elapsedMilliseconds;
 } PerfCounter;
 
+typedef struct File {
+  HANDLE handle;
+  uc *buffer;
+} File;
+
 typedef struct {
   GLint program;
   GLenum type;
 #if DEBUG
-  HANDLE file;
+  HANDLE fileHandle;
   FILETIME lastWriteTime;
 #endif
 } Shader;

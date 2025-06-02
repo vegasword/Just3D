@@ -1,5 +1,3 @@
-Faster model loading by doing one ReadFile call
-Remove attached console and do ImGUI logging by getting OutputDebugStrings (https://gist.github.com/mmozeiko/bfe0ce5762c496f92d8c775983c41694)
 Impl. all basic lights kind
 Impl. all the glTF materials official extensions with their sample model
 Dynamic material checking available maps and discarding missing one in the shader

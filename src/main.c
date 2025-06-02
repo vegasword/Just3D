@@ -51,8 +51,8 @@
   #include "win32_struct.c"
   #include "win32_time.c"
   #include "win32_input.c"
-  #include "win32_opengl.c"
   #include "win32_platform.c"
+  #include "win32_opengl.c"
   #if DEBUG && DEBUG_IMGUI
     #include "win32_imgui.c"
   #endif

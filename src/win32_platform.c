@@ -7,6 +7,17 @@ POINT GetClientCenter(HWND window)
   return cliCenter;
 }
 
+#if DEBUG
+void InitDebugConsole()
+{
+  AllocConsole();
+  AttachConsole(GetCurrentProcessId());
+  HANDLE logger = GetStdHandle(STD_OUTPUT_HANDLE);
+  SetStdHandle(STD_OUTPUT_HANDLE, logger);
+  SetStdHandle(STD_ERROR_HANDLE, logger);
+}
+#endif
+
 void Quit(HWND window, Win32Context *context)
 {
 #if DEBUG
@@ -19,120 +30,31 @@ void Quit(HWND window, Win32Context *context)
   wglDeleteContext(context->glrc);
 }
 
-LRESULT CALLBACK WindowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
-{  
-  Win32Context *context;
-  if (msg == WM_CREATE)
-  {
-    CREATESTRUCT *createStruct = (CREATESTRUCT *)lParam;
-    context = (Win32Context *)createStruct->lpCreateParams;
-    SetWindowLongPtr(window, GWLP_USERDATA, (LONG_PTR)context);
-  }
-  else
-  {
-    context = (Win32Context *)GetWindowLongPtr(window, GWLP_USERDATA);
-  }
-  
-  switch (msg)
-  {    
-    case WM_INPUT: {
-      HandleRawInputs(lParam, context->inputs);
-    } break;
-
-    case WM_SIZE: {
-      v2 viewport = context->viewport = UpdateViewportDimensions(window);
-      context->viewportAspect = viewport.Width / viewport.Height;
-    } break;
-    
-    case WM_SETFOCUS: {
-      POINT cliCenter = GetClientCenter(window);
-      RECT cursorClipBounds = (RECT) { .left = cliCenter.x, .top = cliCenter.y, .right = cliCenter.x, .bottom = cliCenter.y };
-      ClipCursor(&cursorClipBounds);
-      ShowCursor(false);
-    } break;
-    
-    case WM_KILLFOCUS: {
-      ClipCursor(NULL);
-      ShowCursor(true);
-      memset(&context->inputs->buttons, 0, sizeof(context->inputs->buttons));
-    } break;
-
-    case WM_CLOSE:
-    case WM_QUIT:
-    case WM_DESTROY: {
-      Quit(window, context);
-    } break;
-    
-    default: return DefWindowProc(window, msg, wParam, lParam);
-  }
-  
-  return 0;
-}
-
-#if DEBUG && DEBUG_IMGUI
-LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
-LRESULT CALLBACK ImGuiWindowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
+// WARNING: This function doesn't close the created file handle
+File ReadWholeFileEx(Arena *arena, const char* path, DWORD desiredAccess, DWORD sharedMode, DWORD creationDisposition, DWORD flags)
 {
-  ImGui_ImplWin32_WndProcHandler(window, msg, wParam, lParam);
+  File file = {0};
+  file.handle = CreateFile(path, desiredAccess, sharedMode, NULL, creationDisposition, flags, NULL);
+  assert(file.handle != INVALID_HANDLE_VALUE);
   
-  Win32Context *context;
-  if (msg == WM_CREATE)
-  {
-    CREATESTRUCT *createStruct = (CREATESTRUCT *)lParam;
-    context = (Win32Context *)createStruct->lpCreateParams;
-    SetWindowLongPtr(window, GWLP_USERDATA, (LONG_PTR)context);
-  }
-  else
-  {
-    context = (Win32Context *)GetWindowLongPtr(window, GWLP_USERDATA);
-  }
-  
-  switch (msg)
-  {    
-    case WM_INPUT: {
-      if (!context->imguiDebugging || (context->imguiDebugging && igIsMouseDown_Nil(ImGuiMouseButton_Right)))
-      {
-        HandleRawInputs(lParam, context->inputs);
-      }
-      else
-      {
-        memset(&context->inputs->buttons, 0, sizeof(context->inputs->buttons));
-      }
-    } break;
-    
-    case WM_SIZE: {
-      v2 viewport = context->viewport = UpdateViewportDimensions(window);
-      context->viewportAspect = viewport.Width / viewport.Height;
-    } break;
+  LARGE_INTEGER largeSize = {0};
+  GetFileSizeEx(file.handle, &largeSize);
 
-    case WM_SETFOCUS: {
-      if (!context->imguiDebugging)
-      {
-        POINT cliCenter = GetClientCenter(window);
-        RECT cursorClipBounds = (RECT) { .left = cliCenter.x, .top = cliCenter.y, .right = cliCenter.x, .bottom = cliCenter.y };
-        ClipCursor(&cursorClipBounds);
-        ShowCursor(false);
-      }
-    } break;
-    
-    case WM_KILLFOCUS: {
-      if (!context->imguiDebugging)
-      {
-        ClipCursor(NULL);
-        ShowCursor(true);
-        memset(&context->inputs->buttons, 0, sizeof(context->inputs->buttons));
-      }
-    } break;
+  DWORD numberOfBytesToRead = (DWORD)largeSize.QuadPart;
+  DWORD numberOfBytesRead = 0;
 
-    case WM_CLOSE:
-    case WM_QUIT:
-    case WM_DESTROY: {
-      Quit(window, context);
-    } break;
-    
-    default: return DefWindowProc(window, msg, wParam, lParam);
-  }
+  TmpArena tmpArena = {0};
+  TmpBegin(&tmpArena, arena);
   
-  return 0;
+  file.buffer = (uc *)Alloc(arena, numberOfBytesToRead);
+
+  BOOL result = ReadFile(file.handle, file.buffer, numberOfBytesToRead, &numberOfBytesRead, NULL);
+  assert(result && numberOfBytesToRead == numberOfBytesRead);
+
+  file.buffer[numberOfBytesRead] = '\0';
+  
+  TmpEnd(&tmpArena);
+
+  return file;
 }
-#endif
+#define ReadWholeFile(arena, path) ReadWholeFileEx(arena, path, GENERIC_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_READONLY)

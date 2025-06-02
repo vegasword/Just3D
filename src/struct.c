@@ -65,24 +65,29 @@ typedef struct UniformBuffer
 } UniformBuffer;
 
 /*
-// Entities
+// Model
 */
 
-typedef struct ModelHeader {
+typedef struct ModelHeader
+{
   u32 indicesCount;
   u32 indicesSize;
   u32 verticesCount;
   u32 verticesSize;
 } ModelHeader;
 
-typedef struct Model {
-  m4 transformMatrix;
-  m4 viewMatrix;
+typedef struct ModelData {
   v2 uvScale;
   v2 uvOffset;
   v4 baseColor;
   f32 metallicFactor;
   f32 roughnessFactor;
+} ModelData;
+
+typedef struct Model {
+  m4 transformMatrix;
+  m4 viewMatrix;
+  ModelData data;
   u32 baseColorMap;
   u32 metallicRoughnessMap;
   u32 ambientOcclusionMap;
@@ -92,6 +97,10 @@ typedef struct Model {
   Transform transform;
   Bounds bounds;
 } Model;
+
+/*
+// Entities
+*/
 
 typedef struct Camera {
   m4 transformMatrix;

@@ -59,6 +59,51 @@ LRESULT CALLBACK WindowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
 GL_FUNC(X)
 #undef X
 
+#define GL_DEBUG_CASE(buffer, category, subcategory) \
+  case GL_DEBUG_##category##_##subcategory##: \
+    strncpy_s(buffer, 32, #subcategory, sizeof(#subcategory) - 1); \
+    break
+    
+#pragma warning(push)
+#pragma warning(disable: 4100)
+void APIENTRY glDebugCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *user)
+{
+  if (severity == GL_DEBUG_SEVERITY_NOTIFICATION) return;
+  
+  char sourceStr[32];
+  switch (source)
+  {
+    GL_DEBUG_CASE(sourceStr, SOURCE, API);
+    GL_DEBUG_CASE(sourceStr, SOURCE, WINDOW_SYSTEM);
+    GL_DEBUG_CASE(sourceStr, SOURCE, SHADER_COMPILER);
+    GL_DEBUG_CASE(sourceStr, SOURCE, THIRD_PARTY);
+    GL_DEBUG_CASE(sourceStr, SOURCE, APPLICATION);
+    GL_DEBUG_CASE(sourceStr, SOURCE, OTHER);
+  }
+
+  char typeStr[32];
+  switch (type)
+  {
+    GL_DEBUG_CASE(typeStr, TYPE, ERROR);
+    GL_DEBUG_CASE(typeStr, TYPE, DEPRECATED_BEHAVIOR);
+    GL_DEBUG_CASE(typeStr, TYPE, UNDEFINED_BEHAVIOR);
+    GL_DEBUG_CASE(typeStr, TYPE, PORTABILITY);
+    GL_DEBUG_CASE(typeStr, TYPE, PERFORMANCE);
+    GL_DEBUG_CASE(typeStr, TYPE, OTHER);
+    default: break;
+  }
+
+  char severityStr[32];
+  switch (severity)
+  {
+    GL_DEBUG_CASE(severityStr, SEVERITY, LOW);
+    GL_DEBUG_CASE(severityStr, SEVERITY, MEDIUM);
+    GL_DEBUG_CASE(severityStr, SEVERITY, HIGH);
+  }
+  Log("[OPENGL] [%s/%s/%s] %s\n", sourceStr, typeStr, severityStr, message);
+}
+#pragma warning(pop)
+
 static PFNWGL(SWAPINTERVALEXT) wglSwapIntervalEXT = NULL;
 static PFNWGL(CHOOSEPIXELFORMATARB) wglChoosePixelFormatARB = NULL;
 static PFNWGL(CREATECONTEXTATTRIBSARB) wglCreateContextAttribsARB = NULL;
@@ -173,15 +218,7 @@ HWND CreateOpenGLContext(HINSTANCE instance, Win32Context *context)
   
   context->dc = GetDC(window);
   assert(context->dc);
-  
-#if DEBUG
-  AllocConsole();
-  AttachConsole(GetCurrentProcessId());
-  HANDLE logger = GetStdHandle(STD_OUTPUT_HANDLE);
-  SetStdHandle(STD_OUTPUT_HANDLE, logger);
-  SetStdHandle(STD_ERROR_HANDLE, logger);
-#endif
-          
+            
   i32 attribs[] =
   {
     WGL_DRAW_TO_WINDOW_ARB, GL_TRUE,
@@ -281,68 +318,50 @@ GLuint LoadTextureEx(const char * path, GLint wrapS, GLint wrapT, GLint min, GLi
 
 Model LoadModel(Arena *arena, const char *path)
 {
-  HANDLE file = CreateFile(path, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_READONLY, NULL);
-  assert(file != INVALID_HANDLE_VALUE);
+  File file = ReadWholeFile(arena, path);
+    
+  ModelHeader modelHeader = *(ModelHeader *)file.buffer;
+  file.buffer += sizeof(ModelHeader);
   
-  //TODO: Read whole file function for both LoadModel and CompileShader then manual attributions
-  Model model = {0};
-  ModelHeader modelHeader = {0};
-  if (file != INVALID_HANDLE_VALUE)
+  Model model = { .indicesCount = modelHeader.indicesCount, .data = *(ModelData *)file.buffer };
+  file.buffer += offsetof(ModelData, roughnessFactor) + sizeof(f32);
+  
+  u16 *bounds = (u16 *)file.buffer;
+  for (u32 i = 0; i < 3; ++i)
   {
-    ReadFile(file, &modelHeader.indicesCount, sizeof(ModelHeader), 0, NULL);
-    model.indicesCount = modelHeader.indicesCount;
-    
-    ReadFile(file, &model.uvScale, 10 * sizeof(f32), 0, NULL);
-    
-    u16 bounds[6] = {0};
-    ReadFile(file, &bounds, 6 * sizeof(u16), 0, NULL);
-    for (u32 i = 0; i < 3; ++i)
-    {
-      model.bounds.min.Elements[i] = (f32)bounds[i] / 65535.f;
-      model.bounds.max.Elements[i] = (f32)bounds[i+3] / 65535.f;
-    }
-    
-    TmpArena tmpArena = {0};
-    TmpBegin(&tmpArena, arena);
-    
-    u16 *indices = (u16 *)Alloc(arena, modelHeader.indicesSize);
-    Vertex *vertices = (Vertex *)Alloc(arena, modelHeader.verticesSize);
-    ReadFile(file, indices, modelHeader.indicesSize, 0, NULL);
-    ReadFile(file, vertices, modelHeader.verticesSize, 0, NULL);
-        
-    GLuint vbo;
-    glCreateBuffers(1, &vbo);
-    glNamedBufferStorage(vbo, modelHeader.verticesSize, vertices, GL_DYNAMIC_STORAGE_BIT);
-
-    GLuint ebo;
-    glCreateBuffers(1, &ebo);
-    glNamedBufferStorage(ebo, modelHeader.indicesSize, indices, GL_DYNAMIC_STORAGE_BIT);
-
-    glCreateVertexArrays(1, &model.vao);
-    glVertexArrayVertexBuffer(model.vao, 0, vbo, 0, sizeof(Vertex));
-    glVertexArrayElementBuffer(model.vao, ebo);
-
-    glEnableVertexArrayAttrib(model.vao, 0);
-    glVertexArrayAttribIFormat(model.vao, 0, 3, GL_UNSIGNED_SHORT, offsetof(Vertex, x));
-    glVertexArrayAttribBinding(model.vao, 0, 0);
-
-    glEnableVertexArrayAttrib(model.vao, 1);
-    glVertexArrayAttribIFormat(model.vao, 1, 3, GL_BYTE, offsetof(Vertex, nx));
-    glVertexArrayAttribBinding(model.vao, 1, 0);
-    
-    glEnableVertexArrayAttrib(model.vao, 2);
-    glVertexArrayAttribIFormat(model.vao, 2, 4, GL_BYTE, offsetof(Vertex, tx));
-    glVertexArrayAttribBinding(model.vao, 2, 0);
-
-    glEnableVertexArrayAttrib(model.vao, 3);
-    glVertexArrayAttribIFormat(model.vao, 3, 2, GL_UNSIGNED_SHORT,  offsetof(Vertex, u));
-    glVertexArrayAttribBinding(model.vao, 3, 0);
-    
-    TmpEnd(&tmpArena);
-    CloseHandle(file);
+    model.bounds.min.Elements[i] = (f32)bounds[i] / 65535.f;
+    model.bounds.max.Elements[i] = (f32)bounds[i+3] / 65535.f;
   }
-  //TODO: else return a default dummy texture handle
+  file.buffer += 6 * sizeof(u16);
+    
+  GLuint ebo;
+  glCreateBuffers(1, &ebo);
+  glNamedBufferStorage(ebo, modelHeader.indicesSize, file.buffer, GL_DYNAMIC_STORAGE_BIT);
   
+  GLuint vbo;
+  glCreateBuffers(1, &vbo);
+  glNamedBufferStorage(vbo, modelHeader.verticesSize, file.buffer + modelHeader.indicesSize, GL_DYNAMIC_STORAGE_BIT);
+
+  glCreateVertexArrays(1, &model.vao);
+  glVertexArrayVertexBuffer(model.vao, 0, vbo, 0, sizeof(Vertex));
+  glVertexArrayElementBuffer(model.vao, ebo);
+
+  glEnableVertexArrayAttrib(model.vao, 0);
+  glVertexArrayAttribIFormat(model.vao, 0, 3, GL_UNSIGNED_SHORT, offsetof(Vertex, x));
+  glVertexArrayAttribBinding(model.vao, 0, 0);
+
+  glEnableVertexArrayAttrib(model.vao, 1);
+  glVertexArrayAttribIFormat(model.vao, 1, 3, GL_BYTE, offsetof(Vertex, nx));
+  glVertexArrayAttribBinding(model.vao, 1, 0);
+  
+  glEnableVertexArrayAttrib(model.vao, 2);
+  glVertexArrayAttribIFormat(model.vao, 2, 4, GL_BYTE, offsetof(Vertex, tx));
+  glVertexArrayAttribBinding(model.vao, 2, 0);
+
+  glEnableVertexArrayAttrib(model.vao, 3);
+  glVertexArrayAttribIFormat(model.vao, 3, 2, GL_UNSIGNED_SHORT,  offsetof(Vertex, u));
+  glVertexArrayAttribBinding(model.vao, 3, 0);  
+
   return model;
 }
 
@@ -351,35 +370,17 @@ Shader CompileShader(Arena *arena, const char *path, GLenum type)
   Shader shader = { .program = -1, .type = type };
   
 #if DEBUG
-  shader.file = CreateFileA(path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
-#else
-  shader.file = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
-#endif
-  
-  if (!shader.file)
+  File file = ReadWholeFileEx(arena, path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, OPEN_EXISTING, 0);
+  if (shader.fileHandle == 0)
   {
-    Log("Failed to open %s", path);
-    assert(0);
+    shader.fileHandle = file.handle;
   }
-
-#if DEBUG
-  GetFileTime(shader.file, 0, 0, &shader.lastWriteTime);
+  GetFileTime(shader.fileHandle, 0, 0, &shader.lastWriteTime);
+#else
+  File file = ReadWholeFile(arena, path);
 #endif
-  
-  LARGE_INTEGER largeSize = {0};
-  GetFileSizeEx(shader.file, &largeSize);
-  DWORD size = (DWORD)largeSize.QuadPart;
-  
-  TmpArena tmpArena = {0};
-  TmpBegin(&tmpArena, arena);
-  
-  char *fileBuffer = (char *)Alloc(arena, size);
-  assert(fileBuffer);
-  
-  ReadFile(shader.file, (char *)fileBuffer, size, 0, 0);
-  fileBuffer[size] = '\0';
-  
-  GLuint program = glCreateShaderProgramv(type, 1, &fileBuffer);
+
+  GLuint program = glCreateShaderProgramv(type, 1, (const GLchar *const *)&file.buffer);
     
   GLint linked;
   glGetProgramiv(program, GL_LINK_STATUS, &linked);
@@ -394,25 +395,29 @@ Shader CompileShader(Arena *arena, const char *path, GLenum type)
       shader.program = program;
       goto shader_succesfully_compiled;
     }
-  }
+  }  
+  
+#if DEBUG
+  TmpArena tmpArena = {0};
+  TmpBegin(&tmpArena, arena);
   
   GLint logsLength = 0;
   glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logsLength);
+  
   char *logs = (char *)Alloc(arena, logsLength);
   glGetProgramInfoLog(program, logsLength, NULL, logs);
+  
   glDeleteProgram(program);
-#if DEBUG
+  
   Log("Error on %s:\n%s", path, logs);
-  CloseHandle(shader.file);
+    
   assert(!shaderRuntimeCompilationFatal);
 #endif
 
 shader_succesfully_compiled:
-
-#ifndef DEBUG
-  CloseHandle(shader.file);
+#if DEBUG == 0
+  CloseHandle(file.handle);
 #endif
-  TmpEnd(&tmpArena);
   return shader;
 }
 
@@ -435,7 +440,7 @@ Pipeline CreatePipeline(Arena *arena, u32 shadersCount, Shader *shaders)
 void GetShaderNewWriteTime(Shader *shader, ULARGE_INTEGER *prevTime, ULARGE_INTEGER *newTime)
 {
   *prevTime = (ULARGE_INTEGER) { .LowPart = shader->lastWriteTime.dwLowDateTime, .HighPart = shader->lastWriteTime.dwHighDateTime };
-  GetFileTime(shader->file, 0, 0, &shader->lastWriteTime);
+  GetFileTime(shader->fileHandle, 0, 0, &shader->lastWriteTime);
   *newTime = (ULARGE_INTEGER) { .LowPart = shader->lastWriteTime.dwLowDateTime, .HighPart = shader->lastWriteTime.dwHighDateTime };
 }
 
@@ -465,7 +470,7 @@ void ShadersHotReloading(Arena *arena, Pipeline *pipelines, u32 pipelinesCount)
       for (u32 j = 0; j < currentPipeline->shadersCount; ++j)
       {
         char path[MAX_PATH];
-        if (!GetFinalPathNameByHandleA(currentPipeline->shaders[j].file, path, MAX_PATH, VOLUME_NAME_NONE))
+        if (!GetFinalPathNameByHandleA(currentPipeline->shaders[j].fileHandle, path, MAX_PATH, VOLUME_NAME_NONE))
         {
           return;
         }
