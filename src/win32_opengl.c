@@ -487,6 +487,7 @@ void ShadersHotReloading(Arena *arena, Pipeline *pipelines, u32 pipelinesCount)
           if (currentPipeline->shaders[j].program >= 0)
           {
             glUseProgramStages(currentPipeline->program, shaderTypesBit[currentPipeline->shaders[j].type], currentPipeline->shaders[j].program);
+            glBindProgramPipeline(currentPipeline->program);
             break;
           }
           else

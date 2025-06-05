@@ -32,19 +32,16 @@ out gl_PerVertex { vec4 gl_Position; };
 
 void main()
 {    
-  vec4 unpackedPosition = vec4(packedPosition.xyz / 65535.0, 1.0);  
-  vec3 unpackedNormal = clamp(packedNormal / 127.0, -1.0, 1.0);
-  vec4 unpackedTangent = clamp(packedTangent / 127.0, -1.0, 1.0);
+  vec4 localPosition = vec4(packedPosition.xyz / 65535.0, 1.0);  
+  vec3 localNormal = clamp(packedNormal / 127.0, -1.0, 1.0);
+  vec4 localTangent = clamp(packedTangent / 127.0, -1.0, 1.0);
   
-  vec2 uvOffset = uniforms.uvOffset;
-  vec2 uvScale = uniforms.uvScale;
-  mat3 uvTransform = mat3(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, uvOffset.x, uvOffset.y, 1.0) *
-                     mat3(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0) *
-                     mat3(uvScale.x, 0.0, 0.0, 0.0, uvScale.y, 0.0, 0.0, 0.0, 1.0);
-  vec2 unpackedUV = (uvTransform * vec3(packedUV.xy / 65535.0, 1.0)).xy;
+  vec2 uv = packedUV.xy / 65535.0;
+  uv *= uniforms.uvScale;
+  uv += uniforms.uvOffset;
   
-  vec4 worldPosition = uniforms.modelMatrix * unpackedPosition;
-  vec4 projectedPosition = uniforms.mvp * unpackedPosition;
+  vec4 worldPosition = uniforms.modelMatrix * localPosition;
+  vec4 projectedPosition = uniforms.mvp * localPosition;
   vec3 view = normalize(uniforms.cameraPosition.xyz - worldPosition.xyz);
 
   mat3 normalMatrix = mat3(
@@ -53,18 +50,18 @@ void main()
     uniforms.normalMatrixThirdColumn.xyz
   );
 
-  vec3 normal = normalize(normalMatrix * unpackedNormal);
-  vec3 tangent = normalize(normalMatrix * unpackedTangent.xyz);
-  tangent = normalize(tangent - dot(tangent, normal) * normal); // Applying Gram-Schmidt process to re-orthogonalize the TBN vectors
-  float handedness = unpackedTangent.w;
-  vec3 bitangent = normalize(normalMatrix * cross(normal, tangent)) * handedness;
-  mat3 tbn = mat3(tangent, bitangent, normal);
+  vec3 worldNormal = normalize(normalMatrix * localNormal);
+  vec3 worldTangent = normalize(normalMatrix * localTangent.xyz);
+  worldTangent = normalize(worldTangent - dot(worldTangent, worldNormal) * worldNormal); // Applying Gram-Schmidt process to re-orthogonalize the TBN vectors
+  float handedness = localTangent.w;
+  vec3 bitangent = normalize(normalMatrix * cross(worldNormal, worldTangent)) * handedness;
+  mat3 tbn = mat3(worldTangent, bitangent, worldNormal);
 
   gl_Position = projectedPosition;
   
   o_position = worldPosition.xyz;
   o_cameraPosition = uniforms.cameraPosition.xyz;
-  o_uv = unpackedUV;
+  o_uv = uv;
   o_baseColor = uniforms.baseColor;
   o_metallicFactor = uniforms.metallicFactor;
   o_roughnessFactor = uniforms.roughnessFactor;  
