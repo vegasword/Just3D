@@ -1,7 +1,6 @@
 Impl. all basic lights kind
 Impl. all the glTF materials official extensions with their sample model
-Dynamic material checking available maps and discarding missing one in the shader
 KTX 2 textures
 Multiples material meshes
 Clustered forward rendering
-MDI
+MDI and GPU frustum culling

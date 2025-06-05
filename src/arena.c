@@ -4,6 +4,7 @@
 
 #ifndef DEFAULT_ALIGNMENT
 #define DEFAULT_ALIGNMENT (2 * sizeof(void *))
+#define ALIGN_UP(x, N) (((x) + (N) - 1) & ~((N) - 1))
 #endif
 
 typedef struct Arena {

@@ -1,3 +1,5 @@
+const u32 _punctualsBufferBaseOffset = ALIGN_UP(sizeof(u32), 16);
+
 typedef struct  {
   ImGuiContext *ctx;
   ImGuiIO *io;
@@ -7,8 +9,9 @@ typedef struct {
   Arena *arena;
   Win32Context *win32;
   f32 frameDelay;
-  u32 *modelsCount;
+  u32 modelsCount;
   Model *models;
+  DirectLights *directLights;
 } ImGuiDebugData;
 
 void InitImGui(HWND window)
@@ -61,9 +64,9 @@ void UpdateImGui(ImGuiDebugData *data)
       ImGuiTabBarFlags tab_bar_flags = 0;
       if (igBeginTabBar("DebugTabBar", tab_bar_flags))
       {      
-        if (igBeginTabItem("Models", NULL, 0))
+        if (igBeginTabItem("Entities", NULL, 0))
         {
-          for (u32 i = 0; i < *data->modelsCount; ++i)
+          for (u32 i = 0; i < data->modelsCount; ++i)
           {
             Model *model = &data->models[i];
             ModelData modelData = model->data;
@@ -121,6 +124,50 @@ void UpdateImGui(ImGuiDebugData *data)
             igPopID();
           }
           
+          DirectLights *directLights = data->directLights;
+          for (u32 i = 0; i < directLights->punctualsCount; ++i)
+          {
+            PunctualLight *punctualLight = &directLights->punctuals[i];
+            bool isSpotlight = punctualLight->isSpotlight == 1.f;
+            
+            igPushID_Ptr(punctualLight);
+            
+            if (igTreeNodeEx_StrStr("##", 0, "%s %d (%lx)", isSpotlight ? "Spotlight" : "Point Light", i, punctualLight))
+            {              
+              igSeparatorText("Transform");
+
+              if (igDragFloat3("Position", (f32 *)&punctualLight->position, 0.01f, 0, 0, "%f", ImGuiInputTextFlags_CharsDecimal))
+              {
+                glNamedBufferSubData(directLights->puntualsBufferObject, _punctualsBufferBaseOffset + i * sizeof(PunctualLight), sizeof(PunctualLight), punctualLight);
+              }
+      
+              if (igDragFloat3("Direction", (f32 *)&punctualLight->direction, 0.01f, 0, 0, "%f", ImGuiInputTextFlags_CharsDecimal))
+              {
+                glNamedBufferSubData(directLights->puntualsBufferObject, _punctualsBufferBaseOffset + i * sizeof(PunctualLight), sizeof(PunctualLight), punctualLight);
+              }
+      
+              if (igDragFloat3("Color", (f32 *)&punctualLight->color, 0.01f, 0.001f, 1, "%f", ImGuiInputTextFlags_CharsDecimal))
+              {
+                glNamedBufferSubData(directLights->puntualsBufferObject, _punctualsBufferBaseOffset + i * sizeof(PunctualLight), sizeof(PunctualLight), punctualLight);
+              }
+              
+              igSeparatorText("Common properties");
+              
+              igText("Intensity: %f", punctualLight->intensity);
+              igText("Falloff radius: %f", 1.f / punctualLight->inverseFalloffRadius);
+              
+              if (isSpotlight)
+              {
+                igSeparatorText("Spotlight properties");
+                
+                igText("Outer angle: %f", acosf(punctualLight->cosOuterAngle));
+                igText("Scale: %f", punctualLight->spotScale);
+              }
+              
+              igTreePop();
+            }
+            igPopID();
+          }
           igEndTabItem();
         }
         igEndTabBar();

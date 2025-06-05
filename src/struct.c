@@ -46,25 +46,6 @@ typedef struct Bounds {
 } Bounds;
 
 /*
-// Rendering
-*/
-
-typedef struct UniformBuffer
-{
-  m4 mvp;
-  m4 modelMatrix;
-  v4 normalMatrixFirstColumn;
-  v4 normalMatrixSecondColumn;
-  v4 normalMatrixThirdColumn;
-  v4 baseColor;
-  v4 cameraPosition;
-  v2 uvScale;
-  v2 uvOffset;
-  f32 metallicFactor;
-  f32 roughnessFactor;
-} UniformBuffer;
-
-/*
 // Model
 */
 
@@ -98,6 +79,21 @@ typedef struct Model {
   Bounds bounds;
 } Model;
 
+typedef struct ModelUniforms
+{
+  m4 mvp;
+  m4 modelMatrix;
+  v4 normalMatrixFirstColumn;
+  v4 normalMatrixSecondColumn;
+  v4 normalMatrixThirdColumn;
+  v4 baseColor;
+  v4 cameraPosition;
+  v2 uvScale;
+  v2 uvOffset;
+  f32 metallicFactor;
+  f32 roughnessFactor;
+} ModelUniforms;
+
 /*
 // Entities
 */
@@ -113,3 +109,24 @@ typedef struct Camera {
   f32 aspect;
   Transform transform;
 } Camera;
+
+typedef struct PunctualLight
+{
+  v4 position;
+  v4 direction;
+  v3 color;
+  f32 intensity;
+  f32 inverseFalloffRadius;
+  f32 isSpotlight;
+  f32 cosOuterAngle;
+  f32 spotScale;
+} PunctualLight;
+
+typedef struct DirectLights
+{
+  u32 puntualsBufferObject;
+  u32 punctualsCount;
+  u32 punctualsBufferAlignedSize;
+  PunctualLight *punctuals;
+} DirectLights;
+

@@ -47,3 +47,31 @@ void UpdateCamera(Camera *camera, GameInputs inputs, f32 deltaTime)
   camera->viewMatrix = HMM_InvGeneralM4(HMM_MulM4(translation, rotation));
   camera->projectionMatrix = HMM_Perspective_RH_NO(camera->fov, camera->aspect, 0.01, 1000);
 }
+
+PunctualLight CreatePointLight(v3 position, v3 direction, v3 color, f32 intensity, f32 falloffRadius)
+{
+  return (PunctualLight) {
+    .position = (v4){ .XYZ = position },
+    .direction = (v4){ .XYZ = direction },
+    .color = color,
+    .intensity = intensity,
+    .inverseFalloffRadius = 1.0f / falloffRadius,
+    .isSpotlight = 0,
+  };
+}
+
+PunctualLight CreateSpotLight(v3 position, v3 direction, v3 color, f32 intensity, f32 falloffRadius, f32 innerAngle, f32 outerAngle)
+{
+  f32 cosInnerAngle = HMM_CosF(innerAngle);
+  f32 cosOuterAngle = HMM_CosF(outerAngle);
+  return (PunctualLight) {
+    .position = (v4){ .XYZ = position },
+    .direction = (v4){ .XYZ = direction },
+    .color = color,
+    .intensity = intensity,
+    .inverseFalloffRadius = 1.0f / falloffRadius,
+    .isSpotlight = 1,
+    .cosOuterAngle = cosOuterAngle,
+    .spotScale = 1.0f / fmaxf(cosInnerAngle - cosOuterAngle, 0.001f),
+  };
+}

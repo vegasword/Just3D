@@ -38,7 +38,7 @@ i32 WINAPI WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdsh
   models[0].normalMap = LoadTexture("data/textures/helmet_normal.png");
   models[0].ambientOcclusionMap = LoadTexture("data/textures/helmet_ambient_occlusion.png");
   models[0].transform = (Transform) {
-    .position = (v3){0,0,0.5f},
+    .position = (v3){0,0,0},
     .rotation = (v3){0,0.5f,0},
     .scale = (v3){1,1,1}
   };
@@ -49,13 +49,29 @@ i32 WINAPI WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdsh
   }
       
   Camera *camera = (Camera *)Alloc(&arena, sizeof(Camera));
-  camera->transform = (Transform) { .position = (v3){0.092f,0.116f,0.130f} },
+  camera->transform = (Transform) { .position = (v3){0.092f,0.116f,-0.5f} },
   camera->speed = 0.0005f;
   camera->fov = 0.25f;
   camera->yaw = 0.5f;
   
-  u32 uniformBufferObject = CreateUniformBufferObject(4, sizeof(UniformBuffer), GL_DYNAMIC_DRAW);
-  UniformBuffer *uniformBuffer = New(&arena, UniformBuffer);
+  DirectLights *directLights = (DirectLights *)Alloc(&arena, sizeof(DirectLights));
+  
+  u32 punctualsBufferBaseOffset = ALIGN_UP(sizeof(u32), 16);
+  directLights->punctualsCount = 3;
+  u32 punctualsBufferSize = directLights->punctualsCount * sizeof(PunctualLight);
+  directLights->punctualsBufferAlignedSize = ALIGN_UP(punctualsBufferSize, 16);
+  
+  directLights->punctuals = (PunctualLight *)Alloc(&arena, punctualsBufferSize);
+  directLights->punctuals[0] = CreateSpotLight((v3){0,1,0},(v3){0,-1,0},(v3){0,1,0}, 5, 1.5f, 0.05f, 0.15f);
+  directLights->punctuals[1] = CreateSpotLight((v3){-1,0,0},(v3){1,0,0},(v3){1,0,0}, 5, 1.5f, 0.05f, 0.15f);
+  directLights->punctuals[2] = CreateSpotLight((v3){1,0,0},(v3){-1,0,0},(v3){0,0,1}, 5, 1.5f, 0.05f, 0.15f);
+      
+  u32 modelUniformsObject = CreateShaderBufferObject(4, sizeof(ModelUniforms), GL_UNIFORM_BUFFER, GL_DYNAMIC_DRAW);
+  ModelUniforms *modelUniforms = New(&arena, ModelUniforms);
+  
+  directLights->puntualsBufferObject = CreateShaderBufferObject(5, punctualsBufferBaseOffset + punctualsBufferSize, GL_SHADER_STORAGE_BUFFER, GL_DYNAMIC_DRAW);
+  glNamedBufferSubData(directLights->puntualsBufferObject, 0, sizeof(u32), &directLights->punctualsCount);
+  glNamedBufferSubData(directLights->puntualsBufferObject, punctualsBufferBaseOffset, directLights->punctualsBufferAlignedSize, directLights->punctuals);
       
 #if DEBUG && DEBUG_IMGUI
   InitImGui(window);
@@ -63,8 +79,9 @@ i32 WINAPI WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdsh
   ImGuiDebugData imguiDebugData = (ImGuiDebugData) {
     .arena = &arena,
     .win32 = win32,
-    .modelsCount = &modelsCount,
+    .modelsCount = modelsCount,
     .models = models,
+    .directLights = directLights,
   };
   
   DEVMODE devMode = (DEVMODE) { .dmSize = sizeof(DEVMODE) };
@@ -122,19 +139,19 @@ i32 WINAPI WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdsh
         m4 modelTransformMatrix = model.transformMatrix;
         m3 normalMatrix = ComputeNormalMatrix(modelTransformMatrix);
         
-        uniformBuffer->mvp = ComputeModelViewProjectionMatrix(modelTransformMatrix, camera);
-        uniformBuffer->modelMatrix = modelTransformMatrix;
-        uniformBuffer->normalMatrixFirstColumn = (v4){ .XYZ = normalMatrix.Columns[0] };
-        uniformBuffer->normalMatrixSecondColumn = (v4){ .XYZ = normalMatrix.Columns[1] };
-        uniformBuffer->normalMatrixThirdColumn = (v4){ .XYZ = normalMatrix.Columns[2] };
-        uniformBuffer->cameraPosition = (v4){ .XYZ = camera->transform.position };
-        uniformBuffer->baseColor = model.data.baseColor;
-        uniformBuffer->uvScale = model.data.uvScale;
-        uniformBuffer->uvOffset = model.data.uvOffset;
-        uniformBuffer->metallicFactor = model.data.metallicFactor;
-        uniformBuffer->roughnessFactor = model.data.roughnessFactor;
+        modelUniforms->mvp = ComputeModelViewProjectionMatrix(modelTransformMatrix, camera);
+        modelUniforms->modelMatrix = modelTransformMatrix;
+        modelUniforms->normalMatrixFirstColumn = (v4){ .XYZ = normalMatrix.Columns[0] };
+        modelUniforms->normalMatrixSecondColumn = (v4){ .XYZ = normalMatrix.Columns[1] };
+        modelUniforms->normalMatrixThirdColumn = (v4){ .XYZ = normalMatrix.Columns[2] };
+        modelUniforms->cameraPosition = (v4){ .XYZ = camera->transform.position };
+        modelUniforms->baseColor = model.data.baseColor;
+        modelUniforms->uvScale = model.data.uvScale;
+        modelUniforms->uvOffset = model.data.uvOffset;
+        modelUniforms->metallicFactor = model.data.metallicFactor;
+        modelUniforms->roughnessFactor = model.data.roughnessFactor;
         
-        glNamedBufferSubData(uniformBufferObject, 0, sizeof(UniformBuffer), uniformBuffer);
+        glNamedBufferSubData(modelUniformsObject, 0, sizeof(ModelUniforms), modelUniforms);
           
         glBindTextureUnit(0, model.baseColorMap);
         glBindTextureUnit(1, model.metallicRoughnessMap);

@@ -13,7 +13,7 @@ layout (std140, binding = 4) uniform Uniforms
   vec4 normalMatrixSecondColumn;
   vec4 normalMatrixThirdColumn;
   vec4 baseColor;
-  vec4 cameraPosition; // According to Khronos wiki, implementations sometimes get the std140 layout wrong for vec3 components.
+  vec4 cameraPosition;
   vec2 uvScale;
   vec2 uvOffset;
   float metallicFactor;

@@ -502,11 +502,11 @@ void ShadersHotReloading(Arena *arena, Pipeline *pipelines, u32 pipelinesCount)
 }
 #endif
 
-u32 CreateUniformBufferObject(u32 binding, size_t size, GLenum usage)
+u32 CreateShaderBufferObject(u32 binding, size_t size, GLenum target, GLenum usage)
 {
-  GLuint uniformBufferObject;
-  glCreateBuffers(1, &uniformBufferObject);
-  glNamedBufferData(uniformBufferObject, size, 0, usage);
-  glBindBufferBase(GL_UNIFORM_BUFFER, binding, uniformBufferObject);
-  return uniformBufferObject;
+  GLuint shaderBufferObject;
+  glCreateBuffers(1, &shaderBufferObject);
+  glNamedBufferData(shaderBufferObject, size, 0, usage);
+  glBindBufferBase(target, binding, shaderBufferObject);
+  return shaderBufferObject;
 }

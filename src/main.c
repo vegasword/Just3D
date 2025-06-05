@@ -30,11 +30,7 @@
 #include "debug.h"
 #include "algorithm.c"
 
-#if DEBUG_MEMORY
-  #include "arena_debug.c"
-#else
-  #include "arena.c"
-#endif
+#include "arena.c"
 
 #include "struct.c"
 #include "math.c"
