@@ -1,3 +1,4 @@
+Fix the mouse input frame dependent stuttering
 Impl. all basic lights kind
 Impl. all the glTF materials official extensions with their sample model
 KTX 2 textures

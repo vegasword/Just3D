@@ -29,6 +29,7 @@ i32 WINAPI WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdsh
   u32 pipelinesCount = 1;
   Pipeline *pipelines = (Pipeline *)Alloc(&arena, pipelinesCount * sizeof(Pipeline));
   pipelines[0] = CreatePipeline(&arena, 2, &shaders[0]);
+  glBindProgramPipeline(pipelines[0].program);
 
   u32 modelsCount = 1;
   Model *models = (Model *)Alloc(&arena, modelsCount * sizeof(Model));
@@ -131,8 +132,6 @@ i32 WINAPI WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdsh
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   
     {      
-      glBindProgramPipeline(pipelines[0].program);
-      
       for (u32 i = 0; i < modelsCount; ++i)
       {
         Model model = models[i];
