@@ -3,7 +3,7 @@
 SET TITLE=Just3D
 SET DEBUG=1
 SET IFLAGS=/Iinclude
-SET CFLAGS=/FeJust3D /nologo /W4 /GR /EHa /Oi /fp:fast /FC /link /INCREMENTAL:NO /opt:ref /subsystem:windows /entry:WinMainCRTStartup user32.lib gdi32.lib opengl32.lib
+SET CFLAGS=/Fe%TITLE% /nologo /W4 /GR /EHa /Oi /fp:fast /FC /link /INCREMENTAL:NO /opt:ref /subsystem:windows /entry:WinMainCRTStartup user32.lib gdi32.lib opengl32.lib
 
 where cl.exe > nul 2>&1
 if %errorlevel% neq 0 (call setup.bat)

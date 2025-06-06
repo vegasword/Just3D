@@ -59,6 +59,7 @@ LRESULT CALLBACK WindowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
 GL_FUNC(X)
 #undef X
 
+#if DEBUG
 #define GL_DEBUG_CASE(buffer, category, subcategory) \
   case GL_DEBUG_##category##_##subcategory##: \
     strncpy_s(buffer, 32, #subcategory, sizeof(#subcategory) - 1); \
@@ -103,6 +104,7 @@ void APIENTRY glDebugCallback(GLenum source, GLenum type, GLuint id, GLenum seve
   Log("[OPENGL] [%s/%s/%s] %s\n", sourceStr, typeStr, severityStr, message);
 }
 #pragma warning(pop)
+#endif
 
 static PFNWGL(SWAPINTERVALEXT) wglSwapIntervalEXT = NULL;
 static PFNWGL(CHOOSEPIXELFORMATARB) wglChoosePixelFormatARB = NULL;
