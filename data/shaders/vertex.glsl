@@ -1,9 +1,9 @@
 #version 460
 
-layout (location = 0) in uvec3 packedPosition;
-layout (location = 1) in ivec3 packedNormal;
-layout (location = 2) in ivec4 packedTangent;
-layout (location = 3) in uvec2 packedUV;
+layout (location = 0) in uvec3 packedVertexPosition;
+layout (location = 1) in ivec3 packedVertexNormal;
+layout (location = 2) in ivec4 packedVertexTangent;
+layout (location = 3) in uvec2 packedVertexUV;
 
 layout (std140, binding = 4) uniform Uniforms
 {
@@ -20,7 +20,7 @@ layout (std140, binding = 4) uniform Uniforms
   float roughnessFactor;
 } uniforms;
 
-layout (location = 0) out vec3 o_position;
+layout (location = 0) out vec3 o_worldVertexPosition;
 layout (location = 1) out vec3 o_cameraPosition;
 layout (location = 2) out vec2 o_uv;
 layout (location = 3) out vec4 o_baseColor;
@@ -32,17 +32,17 @@ out gl_PerVertex { vec4 gl_Position; };
 
 void main()
 {    
-  vec4 localPosition = vec4(packedPosition.xyz / 65535.0, 1.0);  
-  vec3 localNormal = clamp(packedNormal / 127.0, -1.0, 1.0);
-  vec4 localTangent = clamp(packedTangent / 127.0, -1.0, 1.0);
+  vec4 localVertexPosition = vec4(packedVertexPosition.xyz / 65535.0, 1.0);  
+  vec3 localNormal = clamp(packedVertexNormal / 127.0, -1.0, 1.0);
+  vec4 localTangent = clamp(packedVertexTangent / 127.0, -1.0, 1.0);
   
-  vec2 uv = packedUV.xy / 65535.0;
+  vec2 uv = packedVertexUV.xy / 65535.0;
   uv *= uniforms.uvScale;
   uv += uniforms.uvOffset;
   
-  vec4 worldPosition = uniforms.modelMatrix * localPosition;
-  vec4 projectedPosition = uniforms.mvp * localPosition;
-  vec3 view = normalize(uniforms.cameraPosition.xyz - worldPosition.xyz);
+  vec4 worldVertexPosition = uniforms.modelMatrix * localVertexPosition;
+  vec4 projectedPosition = uniforms.mvp * localVertexPosition;
+  vec3 view = normalize(uniforms.cameraPosition.xyz - worldVertexPosition.xyz);
 
   mat3 normalMatrix = mat3(
     uniforms.normalMatrixFirstColumn.xyz,
@@ -59,7 +59,7 @@ void main()
 
   gl_Position = projectedPosition;
   
-  o_position = worldPosition.xyz;
+  o_worldVertexPosition = worldVertexPosition.xyz;
   o_cameraPosition = uniforms.cameraPosition.xyz;
   o_uv = uv;
   o_baseColor = uniforms.baseColor;

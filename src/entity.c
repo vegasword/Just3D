@@ -48,6 +48,15 @@ void UpdateCamera(Camera *camera, GameInputs inputs, f32 deltaTime)
   camera->projectionMatrix = HMM_Perspective_RH_NO(camera->fov, camera->aspect, 0.01, 1000);
 }
 
+DirectionalLight CreateDirectionalLight(v3 direction, v3 color, f32 intensity)
+{
+  return (DirectionalLight) {
+    .direction = (v4){ .XYZ = direction, .W = 1.0f },
+    .color = color,
+    .intensity = intensity,
+  };
+}
+
 PunctualLight CreatePointLight(v3 position, v3 direction, v3 color, f32 intensity, f32 falloffRadius)
 {
   return (PunctualLight) {

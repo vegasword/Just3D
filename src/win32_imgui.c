@@ -1,5 +1,3 @@
-const u32 _punctualsBufferBaseOffset = ALIGN_UP(sizeof(u32), 16);
-
 typedef struct  {
   ImGuiContext *ctx;
   ImGuiIO *io;
@@ -73,7 +71,7 @@ void UpdateImGui(ImGuiDebugData *data)
             
             igPushID_Ptr(model);
             
-            if (igTreeNodeEx_StrStr("##", 0, "Model %d (%lx)", i, model))
+            if (igTreeNodeEx_StrStr("##", 0, "%lx Model", model))
             {              
               igSeparatorText("Transform");
 
@@ -125,44 +123,78 @@ void UpdateImGui(ImGuiDebugData *data)
           }
           
           DirectLights *directLights = data->directLights;
+          u32 punctualAlignedSize = ALIGN_UP(sizeof(PunctualLight), 16);
           for (u32 i = 0; i < directLights->punctualsCount; ++i)
           {
-            PunctualLight *punctualLight = &directLights->punctuals[i];
-            bool isSpotlight = punctualLight->isSpotlight == 1.f;
+            PunctualLight *punctual = &directLights->punctuals[i];
+            u32 punctualOffset = directLights->punctualsBaseOffset + (i * punctualAlignedSize);
+            bool isSpotlight = punctual->isSpotlight;
             
-            igPushID_Ptr(punctualLight);
+            igPushID_Ptr(punctual);
             
-            if (igTreeNodeEx_StrStr("##", 0, "%s %d (%lx)", isSpotlight ? "Spotlight" : "Point Light", i, punctualLight))
+            if (igTreeNodeEx_StrStr("##", 0, "%lx %s", punctual, isSpotlight ? "Spotlight" : "Point Light"))
             {              
               igSeparatorText("Transform");
 
-              if (igDragFloat3("Position", (f32 *)&punctualLight->position, 0.01f, 0, 0, "%f", ImGuiInputTextFlags_CharsDecimal))
+
+              if (igDragFloat3("Position", (f32 *)&punctual->position, 0.01f, 0, 0, "%f", ImGuiInputTextFlags_CharsDecimal))
               {
-                glNamedBufferSubData(directLights->puntualsBufferObject, _punctualsBufferBaseOffset + i * sizeof(PunctualLight), sizeof(PunctualLight), punctualLight);
+                glNamedBufferSubData(directLights->bufferObject, punctualOffset, punctualAlignedSize, punctual);
               }
       
-              if (igDragFloat3("Direction", (f32 *)&punctualLight->direction, 0.01f, 0, 0, "%f", ImGuiInputTextFlags_CharsDecimal))
+              if (igDragFloat3("Direction", (f32 *)&punctual->direction, 0.01f, 0, 0, "%f", ImGuiInputTextFlags_CharsDecimal))
               {
-                glNamedBufferSubData(directLights->puntualsBufferObject, _punctualsBufferBaseOffset + i * sizeof(PunctualLight), sizeof(PunctualLight), punctualLight);
+                glNamedBufferSubData(directLights->bufferObject, punctualOffset, punctualAlignedSize, punctual);
               }
       
-              if (igDragFloat3("Color", (f32 *)&punctualLight->color, 0.01f, 0.001f, 1, "%f", ImGuiInputTextFlags_CharsDecimal))
+              if (igColorEdit3("Color", (f32 *)&punctual->color, 0))
               {
-                glNamedBufferSubData(directLights->puntualsBufferObject, _punctualsBufferBaseOffset + i * sizeof(PunctualLight), sizeof(PunctualLight), punctualLight);
+                glNamedBufferSubData(directLights->bufferObject, punctualOffset, punctualAlignedSize, punctual);
               }
               
               igSeparatorText("Common properties");
               
-              igText("Intensity: %f", punctualLight->intensity);
-              igText("Falloff radius: %f", 1.f / punctualLight->inverseFalloffRadius);
-              
-              if (isSpotlight)
+              if (igDragFloat("Intensity", &punctual->intensity, 0.01f, 0.001f, 100, "%f", ImGuiInputTextFlags_CharsDecimal))
               {
-                igSeparatorText("Spotlight properties");
-                
-                igText("Outer angle: %f", acosf(punctualLight->cosOuterAngle));
-                igText("Scale: %f", punctualLight->spotScale);
+                glNamedBufferSubData(directLights->bufferObject, punctualOffset, punctualAlignedSize, punctual);
               }
+
+              f32 falloffRadius = 1.f / punctual->inverseFalloffRadius;
+              if (igDragFloat("Falloff radius", &falloffRadius, 0.01f, 0.001f, 100, "%f", ImGuiInputTextFlags_CharsDecimal))
+              {
+                punctual->inverseFalloffRadius = 1.f / falloffRadius;
+                glNamedBufferSubData(directLights->bufferObject, punctualOffset, punctualAlignedSize, punctual);
+              }
+              
+              igSeparatorText("Spotlight properties");
+              if (igCheckbox("Spotlight", (bool *)&isSpotlight))
+              {
+                punctual->isSpotlight = isSpotlight ? 1.f : 0.f;
+                glNamedBufferSubData(directLights->bufferObject, punctualOffset, punctualAlignedSize, punctual);
+              }
+              
+              igBeginDisabled(!isSpotlight);
+              
+              f32 innerAngle = HMM_ACosF(punctual->cosOuterAngle + (1.0f / punctual->spotScale));
+              f32 outerAngle = HMM_ACosF(punctual->cosOuterAngle);
+              
+              if (igDragFloat("Inner angle", &innerAngle, 0.01f, 0.01f, outerAngle, "%.2f", ImGuiInputTextFlags_CharsDecimal))
+              {                
+                punctual->cosOuterAngle = HMM_CosF(outerAngle);
+                punctual->spotScale = 1.0f / fmaxf(HMM_CosF(innerAngle) - punctual->cosOuterAngle, 0.001f),
+                glNamedBufferSubData(directLights->bufferObject, punctualOffset, punctualAlignedSize, punctual);
+              }
+              
+              if (igDragFloat("Outer angle", &outerAngle, 0.01f, innerAngle, 0.5f, "%.2f", ImGuiInputTextFlags_CharsDecimal))
+              {
+                punctual->cosOuterAngle = HMM_CosF(outerAngle);
+                punctual->spotScale = 1.0f / fmaxf(HMM_CosF(innerAngle) - punctual->cosOuterAngle, 0.001f),
+                glNamedBufferSubData(directLights->bufferObject, punctualOffset, punctualAlignedSize, punctual);
+              }
+                            
+              igText("Scale: %f", punctual->spotScale);
+
+              igEndDisabled();
               
               igTreePop();
             }

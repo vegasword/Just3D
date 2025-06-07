@@ -31,6 +31,12 @@ i32 WINAPI WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdsh
   pipelines[0] = CreatePipeline(&arena, 2, &shaders[0]);
   glBindProgramPipeline(pipelines[0].program);
 
+  Camera *camera = (Camera *)Alloc(&arena, sizeof(Camera));
+  camera->transform = (Transform) { .position = (v3){0.092f,0.116f,-0.5f} },
+  camera->speed = 0.0005f;
+  camera->fov = 0.25f;
+  camera->yaw = 0.5f;
+  
   u32 modelsCount = 1;
   Model *models = (Model *)Alloc(&arena, modelsCount * sizeof(Model));
   models[0] = LoadModel(&arena, "data/models/helmet.model");
@@ -39,7 +45,7 @@ i32 WINAPI WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdsh
   models[0].normalMap = LoadTexture("data/textures/helmet_normal.png");
   models[0].ambientOcclusionMap = LoadTexture("data/textures/helmet_ambient_occlusion.png");
   models[0].transform = (Transform) {
-    .position = (v3){0,0,0},
+    .position = (v3){0,0,0.5f},
     .rotation = (v3){0,0.5f,0},
     .scale = (v3){1,1,1}
   };
@@ -48,32 +54,31 @@ i32 WINAPI WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdsh
   {
     UpdateCenteredModelTransformMatrix(&models[i]);        
   }
-      
-  Camera *camera = (Camera *)Alloc(&arena, sizeof(Camera));
-  camera->transform = (Transform) { .position = (v3){0.092f,0.116f,-0.5f} },
-  camera->speed = 0.0005f;
-  camera->fov = 0.25f;
-  camera->yaw = 0.5f;
-  
+        
   DirectLights *directLights = (DirectLights *)Alloc(&arena, sizeof(DirectLights));
-  
-  u32 punctualsBufferBaseOffset = ALIGN_UP(sizeof(u32), 16);
+  directLights->directional = CreateDirectionalLight((v3){-1,-1,-1},(v3){1,1,1}, 5);
   directLights->punctualsCount = 3;
-  u32 punctualsBufferSize = directLights->punctualsCount * sizeof(PunctualLight);
-  directLights->punctualsBufferAlignedSize = ALIGN_UP(punctualsBufferSize, 16);
   
-  directLights->punctuals = (PunctualLight *)Alloc(&arena, punctualsBufferSize);
-  directLights->punctuals[0] = CreateSpotLight((v3){0,1,0},(v3){0,-1,0},(v3){0,1,0}, 5, 1.5f, 0.05f, 0.15f);
-  directLights->punctuals[1] = CreateSpotLight((v3){-1,0,0},(v3){1,0,0},(v3){1,0,0}, 5, 1.5f, 0.05f, 0.15f);
-  directLights->punctuals[2] = CreateSpotLight((v3){1,0,0},(v3){-1,0,0},(v3){0,0,1}, 5, 1.5f, 0.05f, 0.15f);
+  u32 punctualsSize = directLights->punctualsCount * sizeof(PunctualLight);
+  u32 punctualsAlignedSize = ALIGN_UP(punctualsSize, 16);
+  directLights->punctuals = (PunctualLight *)Alloc(&arena, punctualsSize);
+  directLights->punctuals[0] = CreateSpotLight((v3){0,1,0.5f},(v3){0,-1,0},(v3){0,1,0}, 5, 1.5f, 0.05f, 0.15f);
+  directLights->punctuals[1] = CreateSpotLight((v3){-1,0,0.5f},(v3){1,0,0},(v3){1,0,0}, 5, 1.5f, 0.05f, 0.15f);
+  directLights->punctuals[2] = CreateSpotLight((v3){1,0,0.5f},(v3){-1,0,0},(v3){0,0,1}, 5, 1.5f, 0.05f, 0.15f);
+  
+  u32 punctualsCountOffset = ALIGN_UP(sizeof(u32), 16);
+  u32 directionalOffset = ALIGN_UP(sizeof(DirectionalLight), 16);
+  u32 punctualsBaseOffset = punctualsCountOffset + directionalOffset;
+  directLights->punctualsBaseOffset = punctualsBaseOffset;
+  
+  directLights->bufferObject = CreateShaderBufferObject(5, directLights->punctualsBaseOffset + punctualsAlignedSize, GL_SHADER_STORAGE_BUFFER, GL_DYNAMIC_DRAW);
+  glNamedBufferSubData(directLights->bufferObject, 0, sizeof(u32), &directLights->punctualsCount);
+  glNamedBufferSubData(directLights->bufferObject, punctualsCountOffset, sizeof(DirectionalLight), &directLights->directional);
+  glNamedBufferSubData(directLights->bufferObject, punctualsBaseOffset, punctualsAlignedSize, directLights->punctuals);
       
   u32 modelUniformsObject = CreateShaderBufferObject(4, sizeof(ModelUniforms), GL_UNIFORM_BUFFER, GL_DYNAMIC_DRAW);
   ModelUniforms *modelUniforms = New(&arena, ModelUniforms);
   
-  directLights->puntualsBufferObject = CreateShaderBufferObject(5, punctualsBufferBaseOffset + punctualsBufferSize, GL_SHADER_STORAGE_BUFFER, GL_DYNAMIC_DRAW);
-  glNamedBufferSubData(directLights->puntualsBufferObject, 0, sizeof(u32), &directLights->punctualsCount);
-  glNamedBufferSubData(directLights->puntualsBufferObject, punctualsBufferBaseOffset, directLights->punctualsBufferAlignedSize, directLights->punctuals);
-      
 #if DEBUG && DEBUG_IMGUI
   InitImGui(window);
   

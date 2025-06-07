@@ -15,15 +15,3 @@ void LogEx(const char *format, char *filePath, int fileLine, char *function, ...
   va_end(args);
   WriteFile(console, message, (DWORD)strlen(message), 0, NULL);
 }
-
-void Print(const char *format, ...)
-{
-  HANDLE console = GetStdHandle(STD_OUTPUT_HANDLE);
-  
-  char message[4*KB];
-  va_list args;
-  va_start(args, format);
-  vsnprintf(message, sizeof(message), format, args);
-  va_end(args);    
-  WriteFile(console, message, (DWORD)strlen(message), 0, NULL);
-}

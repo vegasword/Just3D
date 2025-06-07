@@ -4,6 +4,13 @@
 #define PI 3.1415926535897932384626433832795
 #define INV_PI 0.31830988618379067153776752674503
 
+struct DirectionalLight
+{
+  vec4 direction;
+  vec3 color;
+  float intensity;
+};
+
 struct PunctualLight
 {
   vec4 position;
@@ -19,12 +26,13 @@ struct PunctualLight
 layout (std430, binding = 5) readonly buffer DirectLights
 {
   uint punctualsCount;
+  DirectionalLight directional;
   PunctualLight punctuals[];
 } directLights;
 
 const vec3 normalIncidenceReflectance = vec3(REFLECTANCE); // Will be variant for differents materials in future implementation
 
-layout (location = 0) in vec3 position;
+layout (location = 0) in vec3 worldVertexPosition;
 layout (location = 1) in vec3 cameraPosition;
 layout (location = 2) in vec2 uv;
 layout (location = 3) in vec4 baseColor;
@@ -74,11 +82,31 @@ float SpotAngleAttenuation(PunctualLight light, vec3 positionToLight)
   return attenuation * attenuation;
 }
 
+vec3 MetallicRoughnessBSDF(vec3 positionToLight, vec3 baseColor, vec3 normal, vec3 view, float normalDotView, float normalDotLight, float metallic, float alphaRoughness)
+{
+  vec3 lightSurfaceDirection = normalize(positionToLight);
+  vec3 halfVector = normalize(view + lightSurfaceDirection);
+
+  float normalDotHalf = clamp(dot(normal, halfVector), 0.0, 1.0);
+  float viewDotHalf = abs(dot(view, halfVector));
+
+  float distribution = GGXNormalDistribution(normalDotHalf, alphaRoughness);
+  float visibility = SmithGGXCorrelatedVisibility(normalDotView, normalDotLight, alphaRoughness);
+  vec3 fresnel = SchlickFresnel(viewDotHalf, normalIncidenceReflectance);
+
+  vec3 specularMetal = normalDotLight * vec3(distribution * visibility);
+  vec3 dielectricBRDF = mix(fresnel, baseColor.rgb, metallic);
+  vec3 diffuseBRDF = (1.0 - dielectricBRDF) * baseColor.rgb * INV_PI;
+  vec3 specularBRDF = dielectricBRDF * specularMetal;
+  
+  return diffuseBRDF + specularBRDF;
+}
+
 void main()
 {  
   o_color = vec4(0.0);
   
-  vec3 view = normalize(cameraPosition - position);
+  vec3 view = normalize(cameraPosition - worldVertexPosition);
   
   vec3 baseColor = texture(baseColorMap, uv).rgb * baseColor.rgb;
   vec3 metallicRoughness = texture(metallicRoughnessMap, uv).rgb;
@@ -91,33 +119,27 @@ void main()
 
   float normalDotView = abs(dot(normal, view));
   
+  {
+    DirectionalLight light = directLights.directional;
+    vec3 positionToLight = normalize(-light.direction.xyz);
+    float normalDotLight = clamp(dot(normal, positionToLight), 0.0, 1.0);
+    vec3 metallicRoughnessBSDF = MetallicRoughnessBSDF(positionToLight, baseColor, normal, view, normalDotView, normalDotLight, metallic, alphaRoughness);
+    vec3 illuminance = light.color * normalDotLight * light.intensity;
+    o_color += vec4(metallicRoughnessBSDF * illuminance * ambientOcclusion, 1.0);
+  }
+  
   for (int i = 0; i < directLights.punctualsCount; i++)
   {
     PunctualLight light = directLights.punctuals[i];
     
-    vec3 positionToLight = light.position.xyz - position;
-    vec3 lightSurfaceDirection = normalize(positionToLight);
-    vec3 halfVector = normalize(view + lightSurfaceDirection);
-    
-    float normalDotLight = clamp(dot(normal, light.position.xyz), 0.0, 1.0);
-    float normalDotHalf = clamp(dot(normal, halfVector), 0.0, 1.0);
-    float viewDotHalf = abs(dot(view, halfVector));
-    
-    float distribution = GGXNormalDistribution(normalDotHalf, alphaRoughness);
-    float visibility = SmithGGXCorrelatedVisibility(normalDotView, normalDotLight, alphaRoughness);
-    vec3 fresnel = SchlickFresnel(viewDotHalf, normalIncidenceReflectance);
-  
-    vec3 specularMetal = normalDotLight * vec3(distribution * visibility);
-    vec3 dielectricBRDF = mix(fresnel, baseColor.rgb, metallic);
-    
-    vec3 diffuseBRDF = (1.0 - dielectricBRDF) * baseColor.rgb * INV_PI;
-    vec3 specularBRDF = dielectricBRDF * specularMetal;
-    vec3 metallicRoughnessBSDF = diffuseBRDF + specularBRDF;
+    vec3 positionToLight = light.position.xyz - worldVertexPosition;
+    float normalDotLight = clamp(dot(normal, positionToLight), 0.0, 1.0);
+    vec3 metallicRoughnessBSDF = MetallicRoughnessBSDF(positionToLight, baseColor, normal, view, normalDotView, normalDotLight, metallic, alphaRoughness);
     
     float attenuation = SquareFalloffAttenuation(positionToLight, light.inverseFalloffRadius);
     attenuation *= mix(1.0, SpotAngleAttenuation(light, positionToLight), light.isSpot);
     
-    vec3 luminance = light.color * normalDotLight * light.intensity * attenuation;
-    o_color += vec4(metallicRoughnessBSDF * luminance * ambientOcclusion, 1.0);
+    vec3 illuminance = light.color * normalDotLight * light.intensity * attenuation;
+    o_color += vec4(metallicRoughnessBSDF * illuminance * ambientOcclusion, 1.0);
   }
 }

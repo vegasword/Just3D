@@ -95,7 +95,7 @@ typedef struct ModelUniforms
 } ModelUniforms;
 
 /*
-// Entities
+// Scene
 */
 
 typedef struct Camera {
@@ -109,6 +109,13 @@ typedef struct Camera {
   f32 aspect;
   Transform transform;
 } Camera;
+
+typedef struct DirectionalLight
+{
+  v4 direction;
+  v3 color;
+  f32 intensity;
+} DirectionalLight;
 
 typedef struct PunctualLight
 {
@@ -124,9 +131,10 @@ typedef struct PunctualLight
 
 typedef struct DirectLights
 {
-  u32 puntualsBufferObject;
+  u32 bufferObject;
   u32 punctualsCount;
-  u32 punctualsBufferAlignedSize;
+  u32 punctualsBaseOffset;
+  DirectionalLight directional;
   PunctualLight *punctuals;
 } DirectLights;
 
