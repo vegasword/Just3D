@@ -32,6 +32,10 @@ typedef struct {
   GameInputs *inputs;
   v2 viewport;
   f32 viewportAspect;
+  i32 virtualDesktopWidth;
+  i32 virtualDesktopHeight;
+  i32 primaryScreenWidth;
+  i32 primaryScreenHeight;
   bool quitting;
 #if DEBUG
   bool imguiDebugging;

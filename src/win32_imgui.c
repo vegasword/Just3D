@@ -8,6 +8,7 @@ typedef struct {
   Win32Context *win32;
   f32 frameDelay;
   u32 modelsCount;
+  Camera *camera;
   Model *models;
   DirectLights *directLights;
 } ImGuiDebugData;
@@ -28,6 +29,7 @@ void InitImGui(HWND window)
 void UpdateImGui(ImGuiDebugData *data)
 {
   Win32Context *win32 = data->win32;
+  GameInputs *inputs = win32->inputs;
   
   ImGui_ImplOpenGL3_NewFrame();
   ImGui_ImplWin32_NewFrame();
@@ -64,13 +66,31 @@ void UpdateImGui(ImGuiDebugData *data)
       {      
         if (igBeginTabItem("Entities", NULL, 0))
         {
+          Camera* camera = data->camera;
+          igPushID_Ptr(camera);
+          if (igTreeNodeEx_StrStr("##", 0, "%lx Camera", camera))
+          {              
+            igText("Position: "V3_FORMAT, V3_ARGS(camera->transform.position));            
+            igText("Pitch: %.2f", camera->pitch);
+            igText("Yaw: %.2f", camera->yaw);
+            
+            i32 fovDegree = (i32)(camera->fov * HMM_TurnToDeg);
+            if (igDragInt("FOV", &fovDegree, 1, 30, 120, "%d", ImGuiInputTextFlags_None))
+            {
+              camera->fov = (f32)(fovDegree * HMM_DegToTurn);
+            }
+            
+            igTreePop();
+          }
+          igPopID();
+          
           for (u32 i = 0; i < data->modelsCount; ++i)
           {
             Model *model = &data->models[i];
             ModelData modelData = model->data;
             
             igPushID_Ptr(model);
-            
+                        
             if (igTreeNodeEx_StrStr("##", 0, "%lx Model", model))
             {              
               igSeparatorText("Transform");
@@ -200,8 +220,19 @@ void UpdateImGui(ImGuiDebugData *data)
             }
             igPopID();
           }
+          igEndTabItem();          
+        }
+        
+        if (igBeginTabItem("Settings", NULL, 0))
+        {
+          igSeparatorText("Mouse");
+          
+          igText("Last mouse delta: "V2_FORMAT, V2_ARGS(inputs->lastMouseDelta));
+          igSliderFloat("Mouse sensitivity", &inputs->mouseSensitivity, 0.0001f, 0.001f, "%.5f", ImGuiSliderFlags_Logarithmic);
+          
           igEndTabItem();
         }
+        
         igEndTabBar();
       }
     }

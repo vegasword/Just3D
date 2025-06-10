@@ -277,6 +277,10 @@ HWND CreateOpenGLContext(HINSTANCE instance, Win32Context *context)
 #endif
     
   UpdateViewportDimensions(window);
+  context->virtualDesktopWidth = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+  context->virtualDesktopHeight = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+  context->primaryScreenWidth = GetSystemMetrics(SM_CXSCREEN);
+  context->primaryScreenHeight = GetSystemMetrics(SM_CYSCREEN);
   
   char title[128] = WINDOW_TITLE;
   strncat_s(title, 128, " - ", _TRUNCATE);

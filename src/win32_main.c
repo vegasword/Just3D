@@ -14,8 +14,8 @@ i32 WINAPI WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdsh
   InitDebugConsole();
 #endif
   
-  GameInputs *inputs = (GameInputs *)Alloc(&arena, sizeof(GameInputs));
-  *inputs = InitGameInputs(&arena, window);
+  GameInputs *inputs = New(&arena, GameInputs);
+  *inputs = InitGameInputs(window, 2.4f);
   win32->inputs = inputs;
           
   Shader *shaders = (Shader *)Alloc(&arena, 4 * sizeof(Shader));
@@ -85,6 +85,7 @@ i32 WINAPI WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdsh
   ImGuiDebugData imguiDebugData = (ImGuiDebugData) {
     .arena = &arena,
     .win32 = win32,
+    .camera = camera,
     .modelsCount = modelsCount,
     .models = models,
     .directLights = directLights,
@@ -105,7 +106,7 @@ i32 WINAPI WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdsh
   PerfCounter deltaCounter = InitPerfCounter();
   StartPerfCounter(&deltaCounter);
   for (;;)
-  {
+  {    
     f32 deltaTime = GetDeltaTime(&deltaCounter);
 #if DEBUG
     ShadersHotReloading(&arena, pipelines, pipelinesCount);
@@ -130,8 +131,7 @@ i32 WINAPI WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdsh
     }
       
     camera->aspect = win32->viewportAspect;
-    ApplyNonLinearMouseFiltering(inputs);
-    UpdateCamera(camera, *inputs, deltaTime);
+    UpdateCamera(camera, inputs, deltaTime);
     
     glClearColor(0, 0, 0, 0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -196,7 +196,7 @@ LRESULT CALLBACK WindowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
   switch (msg)
   {    
     case WM_INPUT: {
-      HandleRawInputs(lParam, context->inputs);
+      HandleRawInputs(lParam, context);
     } break;
 
     case WM_SIZE: {
@@ -252,7 +252,7 @@ LRESULT CALLBACK ImGuiWindowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lP
     case WM_INPUT: {
       if (!context->imguiDebugging || (context->imguiDebugging && igIsMouseDown_Nil(ImGuiMouseButton_Right)))
       {
-        HandleRawInputs(lParam, context->inputs);
+        HandleRawInputs(lParam, context);
       }
       else
       {

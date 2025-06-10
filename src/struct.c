@@ -15,11 +15,9 @@ typedef struct GameButtons {
 } GameButtons;
 
 typedef struct GameInputs {
-  v2 mousePosition;
-  v2 lastAbsMousePosition;
-  v2 deltaMousePos;
-  u32 mouseSmoothing;
-  v2 *mousePosBuffer;
+  v2 mouseDelta;
+  v2 lastMouseDelta;
+  f32 mouseSensitivity;
   bool isKeyPressed;
   GameButtons buttons;
 } GameInputs;
